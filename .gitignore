@@ -82,3 +82,7 @@ CMakeLists.txt.user*
 /build*/
 
 /tsss
+**/venv
+**/.venv
+.venv
+test/assets/models/*

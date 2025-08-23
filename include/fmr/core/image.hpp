@@ -7,12 +7,18 @@
 
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-
 #include <fmt/format.h>
 
-#include <fmr/core/prediction.h>
+#include <fmr/core/prediction.hpp>
 
 namespace fmr {
+
+struct box_info {
+    cv::Rect box;
+    cv::Rect nms_box;
+    float conf;
+    int class_id;
+};
 
 template <typename T>
 inline typename std::enable_if<std::is_arithmetic<T>::value, T>::type
@@ -135,9 +141,9 @@ inline cv::Rect scale_coords(const cv::Size &resizedImageShape,
 }
 
 inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boundingBoxes,
-                                  const std::vector<float>& scores,
-                                  const float scoreThreshold,
-                                  const float iouThreshold)
+                                   const std::vector<float>& scores,
+                                   const float scoreThreshold,
+                                   const float iouThreshold)
 {
 
     std::vector<int> result_indices;
@@ -223,6 +229,94 @@ inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boundingBoxes,
     return result_indices;
 }
 
+inline std::vector<int> nms_bboxes(const std::vector<box_info>& boxes,
+                                   const float scoreThreshold,
+                                   const float iouThreshold)
+{
+
+    std::vector<int> result_indices;
+    // indices.clear();
+
+    const size_t num_boxes = boxes.size();
+    if (num_boxes < 1)
+        return {};
+
+    // filter and sort based on scores
+    std::vector<int> sorted_indices;
+    sorted_indices.reserve(num_boxes);
+    for (size_t i = 0; i < num_boxes; ++i) {
+        if (boxes[i].conf >= scoreThreshold) {
+            sorted_indices.emplace_back(static_cast<int>(i));
+        }
+    }
+
+    if (sorted_indices.empty())
+        return {};
+
+    std::sort(sorted_indices.begin(), sorted_indices.end(),
+              [&boxes](int idx1, int idx2) {
+                  return boxes[idx1].conf > boxes[idx2].conf;
+              });
+
+    // precompute box areas
+    std::vector<float> areas(num_boxes, 0.0f);
+    for (size_t i = 0; i < num_boxes; ++i) {
+        areas[i] = boxes[i].box.width * boxes[i].box.height;
+    }
+
+    // suppression mask to mark suppressed boxes.
+    std::vector<bool> suppressed(num_boxes, false);
+
+    // suppress sorted boxes with high IoU
+    for (size_t i = 0; i < sorted_indices.size(); ++i) {
+        const int current_idx = sorted_indices[i];
+        if (suppressed[current_idx]) {
+            continue;
+        }
+
+        // select the current box as a valid detection
+        result_indices.push_back(current_idx);
+
+        const cv::Rect& current_box = boxes[current_idx].box;
+        const float x1_max = current_box.x;
+        const float y1_max = current_box.y;
+        const float x2_max = current_box.x + current_box.width;
+        const float y2_max = current_box.y + current_box.height;
+        const float area_current = areas[current_idx];
+
+        // compare IoU of the current box with the rest
+        for (size_t j = i + 1; j < sorted_indices.size(); ++j) {
+            int compare_idx = sorted_indices[j];
+            if (suppressed[compare_idx]) {
+                continue;
+            }
+
+            const cv::Rect& compare_box = boxes[compare_idx].box;
+            const float x1 = std::max(x1_max, static_cast<float>(compare_box.x));
+            const float y1 = std::max(y1_max, static_cast<float>(compare_box.y));
+            const float x2 = std::min(x2_max, static_cast<float>(compare_box.x + compare_box.width));
+            const float y2 = std::min(y2_max, static_cast<float>(compare_box.y + compare_box.height));
+
+            const float inter_width = x2 - x1;
+            const float inter_height = y2 - y1;
+
+            if (inter_width <= 0 || inter_height <= 0) {
+                continue;
+            }
+
+            const float intersection = inter_width * inter_height;
+            const float unionArea = area_current + areas[compare_idx] - intersection;
+            const float iou = (unionArea > 0.0f) ? (intersection / unionArea) : 0.0f;
+
+            if (iou > iouThreshold) {
+                suppressed[compare_idx] = true;
+            }
+        }
+    }
+
+    return result_indices;
+}
+
 inline std::vector<cv::Scalar> generate_colors(const std::unordered_map<int, std::string> &classNames,
                                                int seed = 42)
 {
@@ -265,10 +359,17 @@ inline void draw_bbox(cv::Mat &image,
             continue;
 
         const cv::Scalar& color = colors.empty() ? cv::Scalar(0, 0, 255) : colors[prediction.label_id % colors.size()];
-        const std::string label = fmt::format("{} - {} - {}%",
-                                              labels.at(prediction.label_id),
-                                              prediction.tracker_id,
-                                              static_cast<int>(prediction.conf * 100));
+        std::string label;
+        if (prediction.tracker_id != -1) {
+            label = fmt::format("{} - {} - {}%",
+                                labels.at(prediction.label_id),
+                                prediction.tracker_id,
+                                static_cast<int>(prediction.conf * 100));
+        } else {
+            label = fmt::format("{} - {}%",
+                                labels.at(prediction.label_id),
+                                static_cast<int>(prediction.conf * 100));
+        }
 
         cv::rectangle(image, prediction.box, color, 2,  cv::LINE_AA);
 

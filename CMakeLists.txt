@@ -14,20 +14,13 @@ find_package(spdlog 1.15.3 CONFIG REQUIRED)
 find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
 find_package(GTest 1.16.0 CONFIG REQUIRED)
 
-add_library(libfmr
-   src/accelarators/onnxruntime.cpp
-)
+add_library(libfmr INTERFACE)
 add_library(Framer::libfmr ALIAS libfmr)
 
-target_include_directories(libfmr PUBLIC
+target_include_directories(libfmr INTERFACE
    "${CMAKE_SOURCE_DIR}/include"
 )
-target_compile_definitions(libfmr PRIVATE FMR_LIBRARY)
-target_include_directories(libfmr PRIVATE
-   "${CMAKE_SOURCE_DIR}/src"
-)
-target_precompile_headers(libfmr PRIVATE src/fmr_global.h)
-target_link_libraries(libfmr PRIVATE
+target_link_libraries(libfmr INTERFACE
    ${OpenCV_LIBS}
    onnxruntime::onnxruntime
    spdlog::spdlog_header_only

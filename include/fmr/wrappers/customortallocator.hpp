@@ -11,18 +11,18 @@ template<class... Ts>
 Overload(Ts...) -> Overload<Ts...>;
 
 // Just a class to simplify the use of Ort::Allocator and Ort::AllocatorWithDefaultOptions
-class FMR_EXPORT CustomOrtAllocator {
+class custom_ort_alloc {
 public:
     using AllocatorVariant = std::variant<Ort::AllocatorWithDefaultOptions
                                           , Ort::Allocator>;
 
-    CustomOrtAllocator()
+    custom_ort_alloc()
         : m_allocator(std::move(Ort::AllocatorWithDefaultOptions())) {}
 
-    CustomOrtAllocator(Ort::AllocatorWithDefaultOptions default_alloc)
+    custom_ort_alloc(Ort::AllocatorWithDefaultOptions default_alloc)
         : m_allocator(std::move(default_alloc)) {}
 
-    CustomOrtAllocator(Ort::Allocator specific_alloc)
+    custom_ort_alloc(Ort::Allocator specific_alloc)
         : m_allocator(std::move(specific_alloc)) {}
 
     // Returns the underlying OrtAllocator*

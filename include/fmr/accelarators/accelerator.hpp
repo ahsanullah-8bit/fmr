@@ -8,7 +8,7 @@
 
 namespace fmr {
 
-class FMR_EXPORT accelerator {
+class accelerator {
 public:
     virtual void predict_raw(std::vector<std::vector<float>> &data,
                                      std::vector<std::vector<int64_t> > customInputShapes = {}) = 0;
@@ -42,6 +42,8 @@ private:
     std::vector<const char *> m_input_names;
     std::vector<const char *> m_output_names;
 };
+
+// definitions
 
 inline void accelerator::print_metadata() const
 {
