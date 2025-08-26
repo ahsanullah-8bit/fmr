@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-  "name": "framer",
-  "maintainers": "Ahsan Ullah <CS120212021@kkkuk.edu.pk>",
-  "description": "Framer is a light-weight library to ease the use of Computer Vision AI models running locally",
+  "name": "fmr",
+  "maintainers": "Ahsan Ullah <ahsanmir358@gmail.com>",
+  "description": "fmr is a light-weight utility library to ease the use of Computer Vision AI models running locally",
   "supports": "windows",
   "dependencies": [
     {

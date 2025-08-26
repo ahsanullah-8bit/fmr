@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Framer LANGUAGES CXX)
+project(fmr LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,7 +15,7 @@ find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
 find_package(GTest 1.16.0 CONFIG REQUIRED)
 
 add_library(libfmr INTERFACE)
-add_library(Framer::libfmr ALIAS libfmr)
+add_library(fmr::libfmr ALIAS libfmr)
 
 target_include_directories(libfmr INTERFACE
    "${CMAKE_SOURCE_DIR}/include"

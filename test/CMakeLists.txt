@@ -10,7 +10,7 @@ target_include_directories(${CMAKE_PROJECT_NAME}Test PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME}Test PRIVATE
 	GTest::gtest
 	GTest::gtest_main
-	Framer::libfmr
+	fmr::libfmr
 	onnxruntime::onnxruntime
 	${OpenCV_LIBS}
 )
