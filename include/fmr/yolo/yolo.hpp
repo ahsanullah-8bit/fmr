@@ -30,7 +30,10 @@ public:
 protected:
     std::unique_ptr<accelerator> &infer_session();
     virtual std::vector<predictions_t> postprocess_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
-    virtual std::vector<predictions_t> postprocess_keypoints();
+    virtual std::vector<predictions_t> postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
+    virtual std::vector<predictions_t> postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
+    virtual std::vector<predictions_t> postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
+    virtual std::vector<predictions_t> postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
 
 private:
     std::unique_ptr<accelerator> &m_infer_session;
@@ -387,6 +390,122 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
     }
 
     return predictions_list;
+}
+
+inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+{
+    // expected shape [1, num_features, num_detections]
+    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
+    const float* output0_data = m_infer_session->tensor_data(0);
+
+    const int out_batch_size = shape0.at(0);
+    const int out_num_features = shape0.at(1);
+    const int out_num_detections = shape0.at(2);
+    const int out_num_classes = out_num_features - 5; // 5 is cx, cy, w, h, angle
+
+    std::vector<predictions_t> predictions_list;
+    predictions_list.reserve(sel_batch_size);
+    for (size_t p = 0; p < sel_batch_size; ++p) {
+        std::vector<obb_info> boxes;
+        boxes.reserve(out_num_detections);
+
+        /*
+         * We got 8400 detections, of each one of 84 features, of each batch.
+         * D (detections) being the fastest-varying, then F (features) and then B (batch)
+         * The structure of each batch is laid out something like this for [B, F, D]
+            Batch 0
+                Feature 0
+                    Detections 0, 1, ... D-1
+                Feature 1
+                    Detections 0, 1, ... D-1
+                ...
+            Batch 1
+                Feature 0
+                    Detections 0, 1, ... D-1
+                Feature 1
+                    Detections 0, 1, ... D-1
+                ...
+            ...
+        */
+        const float *batch_offsetptr = output0_data + p * (out_num_features * out_num_detections); // jumps p * 84 * 8400 for batch p.
+        for (size_t i = 0; i < out_num_detections; ++i) {
+            // since its [B, F, D], not [B, D, F]. we hover over each feature's detections
+            float cx = batch_offsetptr[0 * out_num_detections + i];
+            float cy = batch_offsetptr[1 * out_num_detections + i];
+            float w = batch_offsetptr[2 * out_num_detections + i];
+            float h = batch_offsetptr[3 * out_num_detections + i];
+
+            int class_id = -1;
+            float max_score = 0.0f;
+            for (int c = 0; c < out_num_classes; ++c) {
+                const float score = batch_offsetptr[(4 + c) * out_num_detections + i];
+                if (max_score < score) {
+                    max_score = score;
+                    class_id = c;
+                }
+            }
+
+            const float angle = batch_offsetptr[(4 + out_num_classes) * out_num_detections];
+
+            if (max_score < m_config->confidence.value_or(0.4f))
+                continue;
+
+            const cv::Size orig_size(batch[batch_indx + p].cols, batch[batch_indx + p].rows);
+            // const cv::Size res_size(input_shape[3], input_shape[2]);
+            const cv::RotatedRect coords(cv::Point2f(cx, cy), cv::Size2f(w, h), angle);
+            cv::RotatedRect scaled_box = scale_coords(res_size, coords, orig_size, true);
+
+            // round coordinates for integer pixel positions
+            scaled_box.x = std::round(scaled_box.x);
+            scaled_box.y = std::round(scaled_box.y);
+            scaled_box.width = std::round(scaled_box.width);
+            scaled_box.height = std::round(scaled_box.height);
+
+            // adjust NMS box coordinates to prevent overlap between classes
+            cv::RotatedRect nms_box = scaled_box;
+            // arbitrary offset to differentiate classes
+            nms_box.x += class_id * 7880;
+            nms_box.y += class_id * 7880;
+
+            boxes.emplace_back(obb_info{scaled_box, nms_box, max_score, class_id});
+        }
+
+        // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
+        const std::vector<int> indices = nms_bboxes(boxes, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
+
+        const auto &labels = m_config->names.value();
+        predictions_t results;
+        results.reserve(indices.size());
+        for (const int idx : indices) {
+            prediction prediction;
+            prediction.box = boxes[idx].box;
+            prediction.conf = boxes[idx].conf;
+            prediction.label_id = boxes[idx].class_id;
+            prediction.label = labels.at(prediction.label_id);
+
+            results.emplace_back(prediction);
+        }
+
+        predictions_list.emplace_back(results);
+    }
+
+
+    return {};
+}
+
+inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+{
+    return {};
+}
+
+inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+{
+    return {};
+}
+
+inline std::vector<predictions_t> yolo::postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+{
+    return {};
 }
 
 inline std::vector<predictions_t> yolo::postprocess_keypoints()

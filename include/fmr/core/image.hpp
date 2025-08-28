@@ -13,13 +13,6 @@
 
 namespace fmr {
 
-struct box_info {
-    cv::Rect box;
-    cv::Rect nms_box;
-    float conf;
-    int class_id;
-};
-
 template <typename T>
 inline typename std::enable_if<std::is_arithmetic<T>::value, T>::type
 clamp(const T &value, const T &low, const T &high)
@@ -315,6 +308,65 @@ inline std::vector<int> nms_bboxes(const std::vector<box_info>& boxes,
     }
 
     return result_indices;
+}
+
+
+inline std::vector<int> nms_obboxes(const std::vector<obb_info>& obbs,
+                                    const float scoreThreshold,
+                                    const float iouThreshold,
+                                    int max_det = 1000) {    
+    const size_t num_boxes = obbs.size();
+    if (num_boxes < 1)
+        return {};
+    
+    // filter and sort based on scores
+    std::vector<int> sorted_indices;
+    sorted_indices.reserve(num_boxes);
+    for (size_t i = 0; i < num_boxes; ++i) {
+        if (obbs[i].conf >= scoreThreshold) {
+            sorted_indices.emplace_back(static_cast<int>(i));
+        }
+    }
+    
+    if (sorted_indices.empty())
+        return {};
+    
+    std::sort(sorted_indices.begin(), sorted_indices.end(),
+              [&obbs](int idx1, int idx2) {
+                  return obbs[idx1].conf > obbs[idx2].conf;
+              });
+    
+    std::vector<int> result_indices;    
+    
+    
+
+    // Filter by confidence
+    std::vector<Detection> candidates;
+    for (const auto& det : input_detections) {
+        if (det.conf > conf_thres) {
+            candidates.push_back(det);
+        }
+    }
+    if (candidates.empty()) return {};
+
+    // Extract boxes and scores
+    std::vector<OrientedBoundingBox> boxes;
+    std::vector<float> scores;
+    for (const auto& det : candidates) {
+        boxes.push_back(det.box);
+        scores.push_back(det.conf);
+    }
+
+    // Run NMS
+    std::vector<int> keep_indices = nmsRotated(boxes, scores, iou_thres);
+
+    // Collect results
+    std::vector<Detection> results;
+    for (int idx : keep_indices) {
+        if (results.size() >= max_det) break;
+        results.push_back(candidates[idx]);
+    }
+    return results;
 }
 
 inline std::vector<cv::Scalar> generate_colors(const std::unordered_map<int, std::string> &classNames,
