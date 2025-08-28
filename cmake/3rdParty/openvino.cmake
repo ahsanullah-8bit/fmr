@@ -10,7 +10,8 @@ if (WIN32)
 		set(OpenVINO_DIR "${OpenVINO_ROOT}/runtime/cmake" CACHE STRING "Path to OpenVINO config files")
 	else()
 		FetchContent_Declare(OpenVINO
-			URL ""
+			URL "https://github.com/ahsanullah-8bit/fmr/releases/download/v0.0.0/openvino-2025.1.0-win-x64-auto-cpu-gpu.zip"
+			URL_HASH "SHA256=a10b05047b4d140f452b564f14916a5fa4f7d6eda99c452d47ee32fcc05204c9"
 		)
 	    FetchContent_MakeAvailable(OpenVINO)
 		FetchContent_GetProperties(OpenVINO)
