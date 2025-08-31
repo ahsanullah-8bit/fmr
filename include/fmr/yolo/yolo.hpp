@@ -216,8 +216,19 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
 
         m_infer_session->predict_raw(inputs, { input_shape });
 
-        std::vector<predictions_t> predictions = postprocess_detections(batch, b, sel_size,
-                                                                        cv::Size(input_shape[3], input_shape[2]));
+        cv::Size resized_size(input_shape[3], input_shape[2]);
+        std::vector<predictions_t> predictions;
+        switch (m_config->task.value_or(yolo_config::Uknown)) {
+        case yolo_config::Detect: {
+            predictions = postprocess_detections(batch, b, sel_size, resized_size);
+            break;
+        }
+        case yolo_config::OBB: {
+            predictions = postprocess_obb_detections(batch, b, sel_size, resized_size);
+        }
+        default:
+            break;
+        }
 
         predictions_list.insert(predictions_list.end(), predictions.begin(), predictions.end());
     }
@@ -453,32 +464,32 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
             const cv::Size orig_size(batch[batch_indx + p].cols, batch[batch_indx + p].rows);
             // const cv::Size res_size(input_shape[3], input_shape[2]);
             const cv::RotatedRect coords(cv::Point2f(cx, cy), cv::Size2f(w, h), angle);
-            cv::RotatedRect scaled_box = scale_coords(res_size, coords, orig_size, true);
+            cv::RotatedRect scaled_obb = scale_coords(res_size, coords, orig_size, true);
 
             // round coordinates for integer pixel positions
-            scaled_box.x = std::round(scaled_box.x);
-            scaled_box.y = std::round(scaled_box.y);
-            scaled_box.width = std::round(scaled_box.width);
-            scaled_box.height = std::round(scaled_box.height);
+            scaled_obb.center.x = std::round(scaled_obb.center.x);
+            scaled_obb.center.y = std::round(scaled_obb.center.y);
+            scaled_obb.size.width = std::round(scaled_obb.size.width);
+            scaled_obb.size.height = std::round(scaled_obb.size.height);
 
             // adjust NMS box coordinates to prevent overlap between classes
-            cv::RotatedRect nms_box = scaled_box;
+            cv::RotatedRect nms_obb = scaled_obb;
             // arbitrary offset to differentiate classes
-            nms_box.x += class_id * 7880;
-            nms_box.y += class_id * 7880;
+            nms_obb.center.x += class_id * 7880;
+            nms_obb.center.y += class_id * 7880;
 
-            boxes.emplace_back(obb_info{scaled_box, nms_box, max_score, class_id});
+            boxes.emplace_back(obb_info{scaled_obb, nms_obb, max_score, class_id});
         }
 
         // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
-        const std::vector<int> indices = nms_bboxes(boxes, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
+        const std::vector<int> indices = nms_obbs(boxes, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
 
         const auto &labels = m_config->names.value();
         predictions_t results;
         results.reserve(indices.size());
         for (const int idx : indices) {
             prediction prediction;
-            prediction.box = boxes[idx].box;
+            prediction.obb = boxes[idx].box;
             prediction.conf = boxes[idx].conf;
             prediction.label_id = boxes[idx].class_id;
             prediction.label = labels.at(prediction.label_id);
@@ -490,7 +501,7 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
     }
 
 
-    return {};
+    return predictions_list;
 }
 
 inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
@@ -504,11 +515,6 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
 }
 
 inline std::vector<predictions_t> yolo::postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
-{
-    return {};
-}
-
-inline std::vector<predictions_t> yolo::postprocess_keypoints()
 {
     return {};
 }

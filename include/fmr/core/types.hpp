@@ -1,5 +1,7 @@
 #pragma once
 
+#include <opencv2/core/types.hpp>
+
 struct box_info {
     cv::Rect box;
     cv::Rect nms_box;

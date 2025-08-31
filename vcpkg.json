@@ -8,7 +8,7 @@
     {
       "name": "opencv4",
       "default-features": false,
-      "features": [ "fs", "gstreamer", "eigen", "highgui", "jpeg", "png" ],
+      "features": [ "fs", "ffmpeg", "eigen", "highgui", "jpeg", "png", "win32ui"],
       "version>=": "4.10.0"
     },
     {

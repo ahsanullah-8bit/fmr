@@ -27,4 +27,5 @@ target_link_libraries(libfmr INTERFACE
    yaml-cpp::yaml-cpp
 )
 
+add_subdirectory(examples)
 add_subdirectory(test)

@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 
 #include <fmr/core/prediction.hpp>
+#include <fmr/core/types.hpp>
 
 namespace fmr {
 
@@ -131,6 +132,24 @@ inline cv::Rect scale_coords(const cv::Size &resizedImageShape,
     }
 
     return result;
+}
+
+inline cv::RotatedRect scale_coords(const cv::Size &resizedImageShape,
+                             cv::RotatedRect coords,
+                             const cv::Size &originalImageShape,
+                             bool clip = true)
+{
+    // NOTE: scale_coords (above) doesn't care if the x and y are centered or top-left coordinates.
+    //          it simply subtracts the padding.
+    cv::Rect box;
+    box.x = coords.center.x;
+    box.y = coords.center.y;
+    box.height = coords.size.height;
+    box.width = coords.size.width;
+
+    box = scale_coords(resizedImageShape, box, originalImageShape, clip);
+
+    return cv::RotatedRect(cv::Point2f(box.x, box.y), cv::Size2f(box.width, box.height), coords.angle);
 }
 
 inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boundingBoxes,
@@ -310,16 +329,28 @@ inline std::vector<int> nms_bboxes(const std::vector<box_info>& boxes,
     return result_indices;
 }
 
+float obb_iou(const cv::RotatedRect& r1, const cv::RotatedRect& r2) {
+    std::vector<cv::Point2f> inter_pts;
+    const int res = cv::rotatedRectangleIntersection(r1, r2, inter_pts);
+    if (res == cv::INTERSECT_NONE)
+        return 0.0f;
 
-inline std::vector<int> nms_obboxes(const std::vector<obb_info>& obbs,
+    float inter_area = 0.0f;
+    if (!inter_pts.empty())
+        inter_area = cv::contourArea(inter_pts);
+
+    float union_area = r1.size.area() + r2.size.area() - inter_area;
+    return inter_area / (union_area + 1e-7f);
+}
+
+inline std::vector<int> nms_obbs(const std::vector<obb_info>& obbs,
                                     const float scoreThreshold,
-                                    const float iouThreshold,
-                                    int max_det = 1000) {    
+                                    const float iouThreshold) {
     const size_t num_boxes = obbs.size();
     if (num_boxes < 1)
         return {};
     
-    // filter and sort based on scores
+    // filter based on scores
     std::vector<int> sorted_indices;
     sorted_indices.reserve(num_boxes);
     for (size_t i = 0; i < num_boxes; ++i) {
@@ -331,41 +362,23 @@ inline std::vector<int> nms_obboxes(const std::vector<obb_info>& obbs,
     if (sorted_indices.empty())
         return {};
     
+    std::iota(sorted_indices.begin(), sorted_indices.end(), 0);
+    // sort based on scores
     std::sort(sorted_indices.begin(), sorted_indices.end(),
               [&obbs](int idx1, int idx2) {
                   return obbs[idx1].conf > obbs[idx2].conf;
               });
-    
-    std::vector<int> result_indices;    
-    
-    
 
-    // Filter by confidence
-    std::vector<Detection> candidates;
-    for (const auto& det : input_detections) {
-        if (det.conf > conf_thres) {
-            candidates.push_back(det);
+    std::vector<int> results;
+    for (int i : sorted_indices) {
+        for (int j : results) {
+            if (obb_iou(obbs[i].box, obbs[j].box) > iouThreshold) {
+                results.push_back(i);
+                break;
+            }
         }
     }
-    if (candidates.empty()) return {};
 
-    // Extract boxes and scores
-    std::vector<OrientedBoundingBox> boxes;
-    std::vector<float> scores;
-    for (const auto& det : candidates) {
-        boxes.push_back(det.box);
-        scores.push_back(det.conf);
-    }
-
-    // Run NMS
-    std::vector<int> keep_indices = nmsRotated(boxes, scores, iou_thres);
-
-    // Collect results
-    std::vector<Detection> results;
-    for (int idx : keep_indices) {
-        if (results.size() >= max_det) break;
-        results.push_back(candidates[idx]);
-    }
     return results;
 }
 
