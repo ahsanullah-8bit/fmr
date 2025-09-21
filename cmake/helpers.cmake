@@ -2,7 +2,6 @@ include_guard()
 
 # Populates all the required dependencies, that can't be done otherwise.
 function(fmr_init_dependencies)
-	
 	include (FetchContent)
 	cmake_policy(SET CMP0169 OLD)
 	set(FETCHCONTENT_QUIET OFF)
@@ -13,3 +12,53 @@ function(fmr_init_dependencies)
 	include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/openvino.cmake)
 
 endfunction() # fmr_init_dependencies
+
+function(fmr_copy_prebuild_files dst)
+	# Copy the prebuild files over to the binary dir
+	if (FMR_PREBUILD_FILES AND NOT FMR_PREBUILD_FILES STREQUAL "")
+		message(STATUS "--- Listing prebuild files (is being copied): ---")
+		foreach(file_path IN LISTS APSS_PREBUILD_FILES)
+			message(STATUS "  - ${file_path}")
+		endforeach()
+		message(STATUS "--- End of prebuild files list ---")
+
+		add_custom_command(TARGET libfmr PRE_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${FMR_PREBUILD_FILES}
+			${dst}
+
+			VERBATIM
+		)
+    endif()
+endfunction() # fmr_copy_prebuild_files
+
+function(fmr_copy_postbuild_files dst)
+	# Copy the postbuild files over to the binary dir
+	if (FMR_POSTBUILD_RUNTIME_FILES AND NOT FMR_POSTBUILD_RUNTIME_FILES STREQUAL "")
+		message(STATUS "--- Listing runtime files (will be copied): ---")
+		foreach(file_path IN LISTS APSS_POSTBUILD_RUNTIME_FILES)
+			message(STATUS "  - ${file_path}")
+		endforeach()
+		message(STATUS "--- End of runtime files list ---")
+
+		add_custom_command(TARGET libfmr POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			    ${FMR_POSTBUILD_RUNTIME_FILES}
+				${dst}
+
+			VERBATIM
+		)
+    endif()
+endfunction() # fmr_copy_postbuild_files
+
+function(fmr_copy_assets target src dst)
+	message(STATUS "Copying ${src} to ${dst}/assets")
+	# Model folders
+	add_custom_command(TARGET ${target} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+		    "${src}"
+			"${dst}/assets"
+		DEPENDS "${src}"
+		COMMENT "Copying ${src} to ${dst}/assets"
+	)
+endfunction() # fmr_copy_assets

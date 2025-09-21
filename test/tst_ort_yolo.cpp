@@ -29,7 +29,7 @@ TEST_F(TestOrtYolo, OrtCPUYolo11n) {
     std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(config);
     fmr::yolo yolo(ort);
 
-    cv::Mat img = cv::imread("assets/img.jpg");
+    cv::Mat img = cv::imread("assets/images/boats.jpg");
     std::vector<cv::Mat> batch = { img };
 
     std::vector<fmr::predictions_t> results = yolo.predict(batch);
@@ -49,7 +49,7 @@ TEST_F(TestOrtYolo, OrtCPUYolo11x) {
     std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(config);
     fmr::yolo yolo(ort);
 
-    cv::Mat img = cv::imread("assets/img.jpg");
+    cv::Mat img = cv::imread("assets/images/boats.jpg");
     std::vector<cv::Mat> batch = { img };
 
     std::vector<fmr::predictions_t> results = yolo.predict(batch);

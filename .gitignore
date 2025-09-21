@@ -85,4 +85,4 @@ CMakeLists.txt.user*
 **/venv
 **/.venv
 .venv
-test/assets/models/*
+assets/models/*

@@ -65,6 +65,7 @@ namespace fmr {
         , m_env(env)
         , m_allocator(allocator)
         , m_memory_info(memoryInfo)
+        , m_logger(spdlog::default_logger()->clone("fmr.accelators.ort"))
     {
         if (!config.model.has_value())
             throw std::runtime_error("Invalid config, please provide a valid config with model info!");
