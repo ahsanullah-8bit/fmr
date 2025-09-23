@@ -29,7 +29,6 @@ int main(int argc, char* argv[])
         .help("Path to the video/image file")
         .required()
         .default_value(std::string("assets/images/bus.jpg"));
-    parser.add_group("Optional");
     parser.add_argument("--task")
         .help("Type of task (detect, obb, pose, segment, classify). It's a must, if the model don't have metadata")
         .choices("detect", "obb", "pose", "segment", "classify");

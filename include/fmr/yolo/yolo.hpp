@@ -148,6 +148,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
     std::vector<predictions_t> predictions_list;
     predictions_list.reserve(batch.size());
 
+    const auto task = m_config->task.value_or(yolo_config::Uknown);
     for(size_t b = 0; b < batch.size(); ++b) {
         const size_t sel_end = std::max(batch.size(),  b + m_config->batch.value_or(1));
         const size_t sel_size = sel_end - b;
@@ -189,15 +190,27 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
             input_shape[0] = sel_size;
         }
 
+        const cv::Size new_shape(max_w, max_h);
         std::vector<cv::Mat> sel_batch;
         for (size_t s = 0; s < sel_size; ++s) {
+            const cv::Mat img = batch[b + s];
             cv::Mat resized_img;
-            letter_box(batch[b + s], resized_img, cv::Size(max_w, max_h));
+
+            if (task == yolo_config::Classify) {
+                cv::resize(img, resized_img, new_shape);
+                cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
+                normalize_imagenet(resized_img);
+            } else {
+                letter_box(img, resized_img, new_shape);
+                cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
+                normalize(resized_img);
+            }
+
             sel_batch.emplace_back(resized_img);
         }
 
         std::vector<std::vector<float>> inputs(1,  std::vector<float>(vec_product(input_shape), 0.0f));
-        norm_and_permute(sel_batch, inputs[0]);
+        permute(sel_batch, inputs[0]);
 
         m_infer_session->predict_raw(inputs, { input_shape });
 
@@ -216,6 +229,9 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
             break;
         case yolo_config::Segment:
             predictions = postprocess_segmentations(batch, b, sel_size, resized_size);
+            break;
+        case yolo_config::Classify:
+            predictions = postprocess_classifications(batch, b, sel_size, resized_size);
             break;
         default:
             break;
@@ -249,6 +265,9 @@ inline void yolo::draw(cv::Mat &img, const predictions_t &predictions, float mas
         break;
     case yolo_config::Segment:
         draw_segmentations(img, predictions, m_config->names.value(), m_colors, true);
+        break;
+    case yolo_config::Classify:
+        draw_classifications(img, predictions, m_config->names.value(), m_colors);
         break;
     default:
         break;
@@ -653,7 +672,7 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
         */
         const float *batch_offsetptr0 = output0_data + p * (out_num_features * out_num_detections);
         const float *batch_offsetptr1 = output1_data + p * (out_num_masks * out_mask_size);
-        
+
         cv::Mat prototype_flat(out_num_masks, out_mask_size, CV_32F);
         for(int m = 0; m < out_num_masks; ++m) {
             const float *mask_ptr = batch_offsetptr1 + m * out_mask_size;
@@ -788,7 +807,47 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
 
 inline std::vector<predictions_t> yolo::postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
 {
-    return {};
+    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0); // expected [B, 1000]
+    const float* output0_data = m_infer_session->tensor_data(0);
+
+    const int out_batch_size = shape0.at(0);
+    const int out_num_logits = shape0.at(1);
+
+    std::vector<predictions_t> predictions_list;
+    predictions_list.reserve(sel_batch_size);
+    for (size_t p = 0; p < sel_batch_size; ++p) {
+        const float *batch_offsetptr = output0_data + p * out_num_logits;
+
+        // max logit for numerical stability
+        float max_logit = *std::max_element(batch_offsetptr, batch_offsetptr + out_num_logits);
+
+        // softmax probabilities
+        float sum_exp = 0.0f;
+        std::vector<float> exps(out_num_logits);
+        for (int i = 0; i < out_num_logits; ++i) {
+            exps[i] = std::exp(batch_offsetptr[i] - max_logit);
+            sum_exp += exps[i];
+        }
+
+        // normalize to get probabilities
+        std::vector<float> probs(out_num_logits);
+        for (int i = 0; i < out_num_logits; ++i) {
+            probs[i] = exps[i] / sum_exp;
+        }
+
+        const int best_class = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
+        const float confidence = probs[best_class];
+
+        const auto &labels = m_config->names.value();
+        prediction prediction;
+        prediction.conf = confidence;
+        prediction.label_id = best_class;
+        prediction.label = labels.at(prediction.label_id);
+
+        predictions_list.push_back({prediction});
+    }
+
+    return predictions_list;
 }
 
 }

@@ -106,7 +106,50 @@ inline void norm_and_permute(std::vector<cv::Mat> &batch, std::vector<float> &bu
     }
 }
 
-inline cv::Mat sigmoid(const cv::Mat& src) {
+inline void normalize(cv::Mat &image, float scale = 1.0f / 255.0f)
+{
+    image.convertTo(image, CV_32FC1, scale);
+}
+
+inline void normalize_imagenet(cv::Mat &image,
+                               const std::vector<float> &mean = { 0.485, 0.456, 0.406 },
+                               const std::vector<float> &std = { 0.229, 0.224, 0.225 },
+                               float scale = 1.0f / 255.0f)
+{
+    if (image.empty() || image.channels() != 3)
+        return;
+
+    std::vector<cv::Mat> channels(3);
+    cv::split(image, channels);
+
+    channels[0] = (channels[0] - mean.at(0)) / std.at(0);
+    channels[1] = (channels[1] - mean.at(1)) / std.at(1);
+    channels[2] = (channels[2] - mean.at(2)) / std.at(2);
+
+    cv::merge(channels.data(), 3, image);
+}
+
+inline void permute(const std::vector<cv::Mat> &batch,
+                    std::vector<float> &buffer)
+{
+    for (size_t b = 0; b < batch.size(); ++b) {
+        const cv::Mat img = batch[b];
+        const int height = img.rows;
+        const int width = img.cols;
+        const int channels = img.channels();
+        float *batch_offset = buffer.data() + b * channels * height * width;
+
+        // split and permute at once
+        std::vector<cv::Mat> out_channels(channels);
+        for (int c = 0; c < channels; ++c)
+            out_channels[c] = cv::Mat(height, width, CV_32FC1, batch_offset + c * height * width);
+
+        cv::split(img, out_channels);
+    }
+}
+
+inline cv::Mat sigmoid(const cv::Mat& src)
+{
     cv::Mat dst;
     cv::exp(-src, dst);
     dst += 1.0;
@@ -580,6 +623,65 @@ inline void draw_segmentations(cv::Mat &image,
         colored_mask.setTo(darker_color, prediction.mask);
 
         cv::addWeighted(image, 1.0, colored_mask, maskAlpha, 0, image);
+    }
+}
+
+inline void draw_classifications(cv::Mat &image,
+                                 const std::vector<prediction> &predictions,
+                                 const std::unordered_map<int, std::string> &labels,
+                                 const std::vector<cv::Scalar> &colors,
+                                 float maskAlpha = 1.0f)
+{
+    if (predictions.empty())
+        return;
+
+    const int font_face = cv::FONT_HERSHEY_SIMPLEX;
+    const double font_scale = std::min(image.rows, image.cols) * 0.0008;
+    const int thickness = std::max(1, static_cast<int>(std::min(image.rows, image.cols) * 0.002));
+    const int padding = static_cast<int>(5 + thickness);
+    int x = padding;
+    int y = padding;  // top-left start
+
+    for (const auto& prediction : predictions) {
+        if (prediction.label_id < 0 || labels.find(prediction.label_id) == labels.end())
+            continue;
+
+        const cv::Scalar& color = colors.empty() ? cv::Scalar(0, 0, 255) : colors[prediction.label_id % colors.size()];
+        std::string label;
+
+        if (labels.empty()) {
+            label = fmt::format("{:.2f}",
+                                prediction.conf * 100.0f);
+        } else {
+            label = fmt::format("{} - {:.2f}",
+                                labels.at(prediction.label_id),
+                               prediction.conf * 100.0f);
+        }
+
+        int baseline = 0;
+        const cv::Size text_size = cv::getTextSize(label, font_face, font_scale, thickness, &baseline);
+        baseline += thickness;
+
+        const cv::Point tl(x, y);
+        const cv::Point br(x + text_size.width + 2 * padding, y + text_size.height + baseline + 2 * padding);
+
+        // label background
+        cv::rectangle(image, tl, br, color, cv::FILLED, cv::LINE_AA);
+        cv::putText(image,
+                    label,
+                    cv::Point(tl.x + padding, tl.y + padding + text_size.height),
+                    font_face,
+                    font_scale,
+                    cv::Scalar(255, 255, 255),
+                    thickness,
+                    cv::LINE_AA);
+
+        y = br.y + padding;
+
+        if (y + text_size.height + baseline + padding > image.rows ||
+            x + text_size.width + 2 * padding > image.cols) {
+            break;
+        }
     }
 }
 
