@@ -1,4 +1,4 @@
-
+find_package(GTest 1.16.0 CONFIG REQUIRED)
 
 add_executable(${CMAKE_PROJECT_NAME}Test
 	tst_image.cpp

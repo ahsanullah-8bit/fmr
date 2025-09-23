@@ -5,6 +5,10 @@ project(fmr LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(FMR_BUILD_EXAMPLES "Build examples" ON)
+option(FMR_BUILD_TESTS "Build tests" ON)
+option(FMR_ORT "ONNXRuntime support" ON)
+
 include(cmake/helpers.cmake)
 fmr_init_dependencies()
 
@@ -12,7 +16,6 @@ find_package(onnxruntime CONFIG REQUIRED)
 find_package(OpenCV 4.10.0 CONFIG REQUIRED)
 find_package(spdlog 1.15.3 CONFIG REQUIRED)
 find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
-find_package(GTest 1.16.0 CONFIG REQUIRED)
 
 add_library(libfmr INTERFACE)
 add_library(fmr::libfmr ALIAS libfmr)
@@ -27,5 +30,10 @@ target_link_libraries(libfmr INTERFACE
    yaml-cpp::yaml-cpp
 )
 
-add_subdirectory(examples)
-add_subdirectory(test)
+if (FMR_BUILD_EXAMPLES)
+   add_subdirectory(examples)
+endif()
+
+if (FMR_BUILD_TESTS)
+   add_subdirectory(test)
+endif()
