@@ -198,13 +198,12 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
 
             if (task == yolo_config::Classify) {
                 cv::resize(img, resized_img, new_shape);
-                cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
-                normalize_imagenet(resized_img);
             } else {
                 letter_box(img, resized_img, new_shape);
-                cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
-                normalize(resized_img);
             }
+
+            cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
+            normalize(resized_img);
 
             sel_batch.emplace_back(resized_img);
         }
@@ -813,6 +812,8 @@ inline std::vector<predictions_t> yolo::postprocess_classifications(const std::v
     const int out_batch_size = shape0.at(0);
     const int out_num_logits = shape0.at(1);
 
+    const float max_probability = m_config->confidence.value_or(0.0010f); // equvalent of 0.10, if 0.0010 * 100
+
     std::vector<predictions_t> predictions_list;
     predictions_list.reserve(sel_batch_size);
     for (size_t p = 0; p < sel_batch_size; ++p) {
@@ -829,22 +830,26 @@ inline std::vector<predictions_t> yolo::postprocess_classifications(const std::v
             sum_exp += exps[i];
         }
 
-        // normalize to get probabilities
-        std::vector<float> probs(out_num_logits);
+        const auto &labels = m_config->names.value();
+        predictions_t predictions;
         for (int i = 0; i < out_num_logits; ++i) {
-            probs[i] = exps[i] / sum_exp;
+            const float probability = exps[i] / sum_exp;
+            if (probability < max_probability)
+                continue;
+
+            prediction prediction;
+            prediction.conf = probability;
+            prediction.label_id = i;
+            prediction.label = labels.at(prediction.label_id);
+            predictions.emplace_back(prediction);
         }
 
-        const int best_class = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
-        const float confidence = probs[best_class];
+        std::sort(predictions.begin(), predictions.end(),
+                  [](const prediction& a, const prediction& b) {
+                      return a.conf > b.conf;
+                  });
 
-        const auto &labels = m_config->names.value();
-        prediction prediction;
-        prediction.conf = confidence;
-        prediction.label_id = best_class;
-        prediction.label = labels.at(prediction.label_id);
-
-        predictions_list.push_back({prediction});
+        predictions_list.emplace_back(predictions);
     }
 
     return predictions_list;
