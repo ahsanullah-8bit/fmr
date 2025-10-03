@@ -54,13 +54,13 @@ int main(int argc, char* argv[])
     ort_config.model = fmr::model_config();
     ort_config.model->path = parser.get<std::string>("--model");
 
-    fmr::yolo_config yolo_config;
+    std::shared_ptr<fmr::yolo_config> yolo_config = std::make_shared<fmr::yolo_config>();
     if (auto task = parser.present("--task"))
-        yolo_config.task = fmr::yolo_config::taskForString(task.value());
+        yolo_config->task = fmr::yolo_config::taskForString(task.value());
 
     if (parser.present("--labels")) {
         if(std::filesystem::exists(parser.get<std::string>("--labels"))) {
-            yolo_config.names = read_names(parser.get<std::string>("--labels"));
+            yolo_config->names = read_names(parser.get<std::string>("--labels"));
         } else {
             logger->warn("Selected labels path doesn't exist. Ignoring!");
         }
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(ort_config);
     ort->print_metadata();
 
-    fmr::yolo yolo(ort);
+    fmr::yolo yolo(ort, yolo_config);
 
     std::string win_name = "YOLO11";
     std::string filepath = parser.get<std::string>("--source");
