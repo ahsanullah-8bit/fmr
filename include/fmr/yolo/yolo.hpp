@@ -65,9 +65,21 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
     if (!m_config->stride && metadata.find("stride") !=  metadata.end())
         m_config->stride = std::stoi(metadata.at("stride"));
 
-    // TODO: make sure all models satisfy this
-    if (!m_config->batch && metadata.find("batch") !=  metadata.end())
-        m_config->batch = std::stoi(metadata.at("batch"));
+    if (!m_config->batch) {
+        // user didn't provide batch
+        if (metadata.find("batch") !=  metadata.end()){
+            // assign what model metadata has
+            m_config->batch = std::stoi(metadata.at("batch"));
+        } else {
+            // fallback to 1 (dynamic) or input shape (fixed)
+            m_config->batch = has_dyn_batch() ? 1 : inferSession->input_shapes().at(0).at(0);
+        }
+    } else {
+        // fixed? compare with input shape. if mismatch, enfore
+        if (!has_dyn_batch()
+            && inferSession->input_shapes().at(0).at(0) != m_config->batch.value())
+            m_config->batch = inferSession->input_shapes().at(0).at(0);
+    }
 
     if (!m_config->imgsz && metadata.find("imgsz") != metadata.end()) {
         YAML::Node node = YAML::Load(metadata.at("imgsz"));
@@ -144,13 +156,16 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
         return {};
     }
 
-    std::vector<int64_t> input_shape(input_shapes.at(0)); // BCHW
+    const int batch_size = m_config->batch.value();
+    std::vector<int64_t> input_shape = input_shapes.at(0); // BCHW
     std::vector<predictions_t> predictions_list;
     predictions_list.reserve(batch.size());
 
     const auto task = m_config->task.value_or(yolo_config::Uknown);
-    for(size_t b = 0; b < batch.size(); ++b) {
-        const size_t sel_end = std::max(batch.size(),  b + m_config->batch.value_or(1));
+    for(size_t b = 0; b < batch.size();) {
+        const size_t sel_end = batch_size < 0                                   // batch is set to -1
+                                   ? batch.size()                               // use the whole batch
+                                   : std::min(batch.size(), b + batch_size);    // else, the specific size
         const size_t sel_size = sel_end - b;
 
         int max_h = input_shape[2];
@@ -175,7 +190,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
 
             if (max_w == -1) {
                 if (m_config->imgsz) {
-                    max_h = m_config->imgsz->at(0);
+                    max_w = m_config->imgsz->at(0);
                 } else {
                     for (size_t s = 0; s < sel_size; ++s)
                         max_w = std::max(max_w, batch[b + s].cols);
@@ -237,6 +252,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
         }
 
         predictions_list.insert(predictions_list.end(), predictions.begin(), predictions.end());
+        b = sel_end;
     }
 
     return predictions_list;

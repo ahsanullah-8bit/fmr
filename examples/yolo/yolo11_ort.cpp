@@ -14,6 +14,7 @@
 #include <fmr/config/yoloconfig.hpp>
 
 bool is_image(const std::string& filename);
+bool is_video(const std::string& filename);
 std::unordered_map<int, std::string> read_names(const std::string &filepath);
 void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img);
 
@@ -24,11 +25,14 @@ int main(int argc, char* argv[])
     parser.add_argument("--model")
         .help("Path to your model")
         .required()
-        .default_value(std::string("assets/models/yolo11n.onnx"));
+        .default_value(std::string("assets/models/yolo11n_dyn.onnx"));
     parser.add_argument("--source")
         .help("Path to the video/image file")
         .required()
         .default_value(std::string("assets/images/bus.jpg"));
+    parser.add_argument("--source2")
+        .help("Path to the 2nd video/image file. For batched inference")
+        .default_value(std::string());
     parser.add_argument("--task")
         .help("Type of task (detect, obb, pose, segment, classify). It's a must, if the model don't have metadata")
         .choices("detect", "obb", "pose", "segment", "classify");
@@ -43,10 +47,17 @@ int main(int argc, char* argv[])
         std::exit(1);
     }
 
-    // validate source file
-    if (!std::filesystem::exists(parser.get<std::string>("--source"))) {
+    // validate source files
+    std::string source1 = parser.get<std::string>("--source");
+    if (!std::filesystem::exists(source1)) {
         logger->critical("Selected source file doesn't exist. Please provide a valid source file!");
         std::exit(1);
+    }
+
+    std::string source2 = parser.get<std::string>("--source2");
+    if (!source2.empty()
+        && !std::filesystem::exists(source2)) {
+        logger->critical("Selected 2nd source file doesn't exist. Please provide a valid source file!");
     }
 
     // model path is already validated by the fmr::onnxruntime
@@ -71,85 +82,147 @@ int main(int argc, char* argv[])
 
     fmr::yolo yolo(ort, yolo_config);
 
-    std::string win_name = "YOLO11";
-    std::string filepath = parser.get<std::string>("--source");
-    if (is_image(filepath)) {
+    std::string win_name = "YOLO11-1st", win2_name = "YOLO11-2nd";
+    if (is_image(source1)) {
         // is an image
-        cv::Mat img = cv::imread(filepath);
-        const auto preds = yolo.predict({ img });
-        yolo.draw(img, preds[0]);
-        cv::imshow(win_name, img);
+        std::vector<cv::Mat> batch = { cv::imread(source1) };
+
+        bool is_valid_img2 = !source2.empty() && is_image(source2);
+        if (is_valid_img2)
+            batch.emplace_back(cv::imread(source2));
+
+        const auto preds = yolo.predict(batch);
+        yolo.draw(batch, preds);
+
+        cv::imshow(win_name, batch.at(0));
+
+        if (is_valid_img2)
+            cv::imshow(win2_name, batch.at(1));
+
         cv::waitKey();
-    } else {
+    } else if (is_video(source1)) {
         // is a video
         fmr::frames_per_second fps;
         fps.start();
 
-        cv::VideoCapture cap(filepath);
-        if (!cap.isOpened()) {
+        std::unique_ptr<cv::VideoCapture> cap = std::make_unique<cv::VideoCapture>(source1);
+        if (cap && !cap->isOpened()) {
             logger->error("Could not open the video file.");
             std::exit(1);
         }
 
-        cv::Mat frame;
+        std::unique_ptr<cv::VideoCapture> cap2;
+        if (!source2.empty() && is_video(source2)) {
+            cap2 = std::make_unique<cv::VideoCapture>(source2);
+            if (!cap2->isOpened()) {
+                logger->error("Could not open the 2nd video file.");
+                cap2 = nullptr;
+            } else {
+                cv::namedWindow(win2_name, cv::WINDOW_NORMAL | cv::WINDOW_KEEPRATIO);
+            }
+        }
+
+        cv::Mat frame, frame2;
         cv::namedWindow(win_name, cv::WINDOW_NORMAL | cv::WINDOW_KEEPRATIO);
-        while (true) {
-            if (!cap.read(frame)) {
-                // loop again
-                cap.set(cv::CAP_PROP_POS_FRAMES, 0);
-                continue;
+        while (cap || cap2) {
+            std::vector<cv::Mat> batch;
+
+            if (cap) {
+                if (!cap->read(frame)) {
+                    // loop again
+                    cap->set(cv::CAP_PROP_POS_FRAMES, 0);
+                    cap->read(frame);
+                }
+
+                if (!frame.empty())
+                    batch.emplace_back(frame);
             }
 
-            std::vector<fmr::predictions_t> predictions = yolo.predict({ frame });
-            if (!predictions.empty())
-                yolo.draw(frame, predictions[0]);
+            if (cap2) {
+                if (!cap2->read(frame2)) {
+                    cap2->set(cv::CAP_PROP_POS_FRAMES, 0);
+                    cap2->read(frame2);
+                }
 
-            std::string fps_text = fmt::format("FPS: {}", std::to_string((int)fps.fps()));
-            draw_metrics({ fps_text }, frame);
+                if (!frame2.empty())
+                    batch.emplace_back(frame2);
+            }
 
-            cv::imshow(win_name, frame);
+            // inference
+            std::vector<fmr::predictions_t> predictions = yolo.predict(batch);
+            yolo.draw(batch, predictions);
+
+            if (cap) {
+                std::string fps_text = fmt::format("FPS: {}", std::to_string((int)fps.fps()));
+                draw_metrics({ fps_text }, batch.at(0));
+                cv::imshow(win_name, batch.at(0));
+            }
+
+            if (cap2) {
+                cv::Mat img = cap ? batch.at(1) : batch.at(0);
+                cv::imshow(win2_name, img);
+            }
+
             int key = cv::pollKey();
             if (key == 'q' || key == 27) // 'q' or ESC
                 break;
 
             // check if window was closed
-            if (cv::getWindowProperty(win_name, cv::WND_PROP_VISIBLE) < 1)
-                break;
+            if (cap && cv::getWindowProperty(win_name, cv::WND_PROP_VISIBLE) < 1) {
+                cap = nullptr;
+            }
+
+            // check if window was closed
+            if (cap2 && cv::getWindowProperty(win2_name, cv::WND_PROP_VISIBLE) < 1) {
+                cap2 = nullptr;
+            }
 
             fps.update();
         }
 
-        cap.release();
         cv::destroyAllWindows();
     }
 
     return 0;
 }
 
-bool is_image(const std::string& filename) {
-    // Define sets of known image and video extensions
+bool is_image(const std::string& filename)
+{
     static const std::unordered_set<std::string> image_exts = {
         ".bmp", ".dib", ".jpg", ".jpeg", ".jpe", ".jp2", ".png",
         ".tif", ".tiff", ".pbm", ".pgm", ".ppm", ".sr", ".ras", ".webp"
     };
 
-    static const std::unordered_set<std::string> video_exts = {
-        ".avi", ".mp4", ".mov", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv"
-    };
-
-    // Extract lowercase extension from filename
+    // extract lowercase extension from filename
     size_t dot_pos = filename.find_last_of('.');
     std::string ext = filename.substr(dot_pos);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
     if (image_exts.count(ext))
         return true;
-    if (video_exts.count(ext))
-        return false;
-    return true;
+
+    return false;
 }
 
-std::unordered_map<int, std::string> read_names(const std::string &filepath) {
+bool is_video(const std::string& filename)
+{
+    static const std::unordered_set<std::string> video_exts = {
+        ".avi", ".mp4", ".mov", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv"
+    };
+
+    // extract lowercase extension from filename
+    size_t dot_pos = filename.find_last_of('.');
+    std::string ext = filename.substr(dot_pos);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (video_exts.count(ext))
+        return true;
+
+    return false;
+}
+
+std::unordered_map<int, std::string> read_names(const std::string &filepath)
+{
     std::ifstream in_stream;
     in_stream.open(filepath, std::ios_base::in);
 
@@ -166,7 +239,8 @@ std::unordered_map<int, std::string> read_names(const std::string &filepath) {
     return result;
 }
 
-void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img) {
+void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img)
+{
     int baseline = 0;
     const int font_face = cv::FONT_HERSHEY_SIMPLEX;
     const double font_scale = std::min(img.cols, img.rows) * 0.0008;
