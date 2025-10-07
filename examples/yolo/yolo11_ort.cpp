@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
     parser.add_argument("--model")
         .help("Path to your model")
         .required()
-        .default_value(std::string("assets/models/yolo11n_dyn.onnx"));
+        .default_value(std::string("assets/models/yolo11n.onnx"));
     parser.add_argument("--source")
         .help("Path to the video/image file")
         .required()

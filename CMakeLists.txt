@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(fmr LANGUAGES CXX)
+project(fmr VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(FMR_BUILD_EXAMPLES "Build examples" ON)
-option(FMR_BUILD_TESTS "Build tests" ON)
+option(FMR_BUILD_EXAMPLES "Build examples" OFF)
+option(FMR_BUILD_TESTS "Build tests" OFF)
 option(FMR_ORT "ONNXRuntime support" ON)
 
 include(cmake/helpers.cmake)
@@ -21,14 +21,54 @@ add_library(libfmr INTERFACE)
 add_library(fmr::libfmr ALIAS libfmr)
 
 target_include_directories(libfmr INTERFACE
-   "${CMAKE_SOURCE_DIR}/include"
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
 target_link_libraries(libfmr INTERFACE
    ${OpenCV_LIBS}
    onnxruntime::onnxruntime
    spdlog::spdlog_header_only
    yaml-cpp::yaml-cpp
 )
+
+if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+   include(GNUInstallDirs)
+   include(CMakePackageConfigHelpers)
+
+   install(TARGETS libfmr
+       EXPORT fmrTargets
+       INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+   )
+
+   # For find_package
+   install(EXPORT fmrTargets
+       FILE fmrTargets.cmake
+       NAMESPACE fmr::
+       DESTINATION "${CMAKE_INSTALL_DATADIR}/fmr"
+   )
+
+   install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+   configure_package_config_file(
+       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/fmrConfig.cmake.in
+       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
+       INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
+   )
+
+   write_basic_package_version_file(
+       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
+       VERSION ${PROJECT_VERSION}
+       COMPATIBILITY SameMajorVersion
+   )
+
+   install(FILES
+       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
+       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
+       DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
+   )
+
+endif()
 
 if (FMR_BUILD_EXAMPLES)
    add_subdirectory(examples)
