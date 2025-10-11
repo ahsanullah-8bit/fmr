@@ -416,7 +416,7 @@ public:
 
 ### Functions
 
-I don't think these need any explanations as their names are obivous.
+I don't think these need any explanation as their names are obivous.
 
 ```c++
 // #include <fmr/core/image.hpp>
@@ -525,7 +525,7 @@ void draw_classifications(cv::Mat &image,
 ```
 
 ### Examples
-Look into the `examples` folder for detailed examples. Use `FMR_BUILD_EXAMPLES=ON` to build them along with the library. After build, use it like any other CLI tool. i.e.
+Look into the `examples` folder for detailed examples. Use `FMR_BUILD_EXAMPLES=ON` to build them along with the library. After build, use them like any other CLI tool. i.e.
 
 ```bash
 yolo11_ort -h   # to get a detailed usage guide.
@@ -537,9 +537,9 @@ yolo11_ort --source "path/to/an/image-or-video" --model "assets/models/yolo11n-o
 fmr can be integrated into a CMake through several ways
 
 ### Requirements
-`fmr`'s package acquisition is designed in a way that, when [consumed as a submodule](#integrate-as-a-submodule) or [through `FetchContent`](#integrate-through-fetchcontent), it will try to acquire prebuilt libraries like `ONNXRuntime` on its own, unless you set `onnxruntime_DIR` or `onnxruntime_ROOT` to your custom builds. The builds must have the right files to work with `find_package`. But the rest are your responsibility a as consumer to acquire. 
+`fmr`'s package acquisition is designed in a way that, when [consumed as a submodule](#integrate-as-a-submodule) or [through `FetchContent`](#integrate-through-fetchcontent), it will try to acquire prebuilt libraries like `ONNXRuntime` on its own, unless you set `onnxruntime_DIR` or `onnxruntime_ROOT` to your custom builds. The builds must have the right files to work with `find_package`. The rest of the dependencies are your responsibility as a consumer.
 
-When consumed as [build and integrate](#build-and-integrate). We can't really ship the libraries it needs. So, you're responsible for that as well to acquire.
+But if you want to [build and integrate](#build-and-integrate). You'll need to provide those dependencies, when you use it. Because you can't install external libraries with the library.
 
 - **OpenCV >= 4.10** : Used for image pre-and-post processing.
 - **ONNXRuntime >= 1.22** : Used for inference of yolo models, in `.onnx` format. Optional in a sense that, it will be downloaded as a prebuilt library in some cases.
@@ -574,7 +574,7 @@ git clone https://github.com/ahsanullah-8bit/fmr
 cd fmr
 ```
 
-Build and install
+Configure, build and install
 
 ```bash
 cmake -S . -B build -DFMR_BUILD_EXAMPLES=ON -DFMR_BUILD_TESTS=ON
@@ -587,11 +587,11 @@ Then in your project, either do:
 ```cmake
 set(fmr_DIR "<path/to/installation/dir>/share/fmr")
 
-# or, (I don't know if this works)
-# set(fmr_ROOT "<path/to/installation/dir>")
+# or
+# set(fmr_ROOT "<path/to/installation/dir>") # I don't know if this works
 ```
 
-or set the variables in CLI
+or set the variables in CLI, when building your projects
 
 ```bash
 cmake -S <source_dir> -B <build_dir> -Dfmr_DIR="<path/to/installation/dir>/share/fmr"
