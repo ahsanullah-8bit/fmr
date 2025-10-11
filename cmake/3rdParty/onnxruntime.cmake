@@ -5,7 +5,7 @@ include_guard()
 ######################################
 
 if (WIN32)
-	set(ORT_URL "https://github.com/ahsanullah-8bit/fmr/releases/download/v0.0/ort_win64_1.22.2.zip")
+	set(ORT_URL "https://github.com/ahsanullah-8bit/fmr/releases/download/v0.0.0/ort_win64_1.22.2.zip")
 	set(ORT_URL_HASH "SHA256=0a9ef10c4c15b055fc206c9783f91a51c58cd13515fb7e2034c139dfa70e7d58")
 elseif(LINUX)
 	set(ORT_URL "")
