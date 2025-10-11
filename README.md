@@ -2,7 +2,7 @@
 
 **fmr** is a utility library focused on providing utility classes and functions, for realtime production level usage of Computer Vision models, in C++. 
 
-[!NOTE]
+> [!NOTE]
 > The library is called Framer. But since I found a framework or something with a same name. I had to rename it to fmr, short for Framer.
 
 ## Contents
@@ -90,7 +90,7 @@ These are some of the models tested with fmr
 - YOLOv5nu
 - YOLOv3-tinyu
 
-[!NOTE]
+> [!NOTE]
 > Models modified or customized may work, if they expect similar pre-and-post processing techniques to that of the above.
 
 ## Detailed Usage
@@ -117,7 +117,7 @@ Util classes
 - [keypoint]()
 - [frames_per_second]()
 
-[!IMPORTANT]
+> [!IMPORTANT]
 > fmr always prioritizes your configuration over any metadata embedded in the model. For instance, if you explicitly set a task type, that setting takes precedence over the model’s own metadata. 
 > This gives you full control and full responsibility.
 
@@ -258,7 +258,7 @@ protected:
 };
 ```
 
-[!NOTE]
+> [!NOTE]
 > You may introduce your own accelarator subclass and use it with the existing model classes, by overriding the necessary abstract methods. If you do so, you must use the setters to set the required private properties of the `accelarator` class.
 
 #### [onnxruntime](#classes-and-structs)
