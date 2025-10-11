@@ -22,9 +22,7 @@ protected:
 // yolo11n detect model inference on ORT CPU EP
 TEST_F(TestOrtYolo, OrtCPUYolo11n) {
     fmr::predictor_config config;
-    config.batch_size = 1;
-    config.model = fmr::model_config();
-    config.model->path= "assets/models/yolo11n.onnx";
+    config.model_path = "assets/models/yolo11n.onnx";
 
     std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(config);
     fmr::yolo yolo(ort);
@@ -42,9 +40,7 @@ TEST_F(TestOrtYolo, OrtCPUYolo11n) {
 // yolo11x detect model inference on ORT CPU EP
 TEST_F(TestOrtYolo, OrtCPUYolo11x) {
     fmr::predictor_config config;
-    config.batch_size = 1;
-    config.model = fmr::model_config();
-    config.model->path= "assets/models/yolo11x.onnx";
+    config.model_path = "assets/models/yolo11x.onnx";
 
     std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(config);
     fmr::yolo yolo(ort);

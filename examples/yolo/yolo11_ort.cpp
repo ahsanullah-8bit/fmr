@@ -62,8 +62,7 @@ int main(int argc, char* argv[])
 
     // model path is already validated by the fmr::onnxruntime
     fmr::predictor_config ort_config;
-    ort_config.model = fmr::model_config();
-    ort_config.model->path = parser.get<std::string>("--model");
+    ort_config.model_path = parser.get<std::string>("--model");
 
     std::shared_ptr<fmr::yolo_config> yolo_config = std::make_shared<fmr::yolo_config>();
     if (auto task = parser.present("--task"))

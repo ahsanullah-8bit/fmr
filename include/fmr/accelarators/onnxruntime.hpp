@@ -67,7 +67,7 @@ namespace fmr {
         , m_memory_info(memoryInfo)
         , m_logger(spdlog::default_logger()->clone("fmr.accelators.ort"))
     {
-        if (!config.model.has_value())
+        if (!config.model_path.has_value())
             throw std::runtime_error("Invalid config, please provide a valid config with model info!");
 
         if (!m_env)
@@ -76,7 +76,7 @@ namespace fmr {
         if (!m_memory_info)
             m_memory_info = std::make_shared<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
-        std::string model_path = config.model->path.value_or("");
+        std::string model_path = config.model_path.value_or("");
         if (!std::filesystem::exists(model_path)
             || model_path.find_last_of(".onnx") == std::string::npos)
             throw std::runtime_error("Model does not exist or has invalid extension. Please download a model first and try again!");
@@ -248,7 +248,7 @@ namespace fmr {
     {
         const Ort::ModelMetadata &metadata = m_session.GetModelMetadata();
         m_logger->debug("Model metadata:");
-        m_logger->debug(fmt::format("\tFile: {}", m_config.model->path.value_or("").c_str()));
+        m_logger->debug(fmt::format("\tFile: {}", m_config.model_path.value_or("").c_str()));
         m_logger->debug(fmt::format("\tGraph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get()));
 
         m_logger->debug("\tCustom Metadata:");
