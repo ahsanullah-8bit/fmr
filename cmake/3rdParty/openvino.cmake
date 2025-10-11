@@ -4,14 +4,22 @@
 # We're not using OpenVINO itself yet, but onnxruntime requires its dlls for OpenVINO EP.
 
 if (WIN32)
+	set(OV_URL "https://github.com/ahsanullah-8bit/fmr/releases/download/v0.0/openvino-2025.1.0-win-x64-auto-cpu-gpu.zip")
+	set(OV_URL_HASH "SHA256=a10b05047b4d140f452b564f14916a5fa4f7d6eda99c452d47ee32fcc05204c9")
+elseif (LINUX)
+	set(OV_URL )
+	set(OV_URL_HASH )
+endif()
+
+if (OV_URL AND OV_URL_HASH)
 	if (OpenVINO_DIR AND NOT OpenVINO_DIR STREQUAL "")
 		set(OpenVINO_ROOT "${OpenVINO_DIR}/../../" CACHE STRING "Path to OpenVINO root directory")
 	elseif(OpenVINO_ROOT AND NOT OpenVINO_ROOT STREQUAL "")
 		set(OpenVINO_DIR "${OpenVINO_ROOT}/runtime/cmake" CACHE STRING "Path to OpenVINO config files")
 	else()
 		FetchContent_Declare(OpenVINO
-			URL "https://github.com/ahsanullah-8bit/fmr/releases/download/v0.0.0/openvino-2025.1.0-win-x64-auto-cpu-gpu.zip"
-			URL_HASH "SHA256=a10b05047b4d140f452b564f14916a5fa4f7d6eda99c452d47ee32fcc05204c9"
+			URL ${OV_URL}
+			URL_HASH ${OV_URL_HASH}
 		)
 	    FetchContent_MakeAvailable(OpenVINO)
 		FetchContent_GetProperties(OpenVINO)
