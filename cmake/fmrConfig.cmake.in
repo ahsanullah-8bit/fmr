@@ -1,7 +1,15 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
-find_dependency(onnxruntime QUIET)
+
+if (@IS_MAIN_PROJECT@)
+    # is being built as a separate project and integrated
+	find_dependency(onnxruntime REQUIRED)
+else()
+    # is a sub-project, either through submodule'ing or FetchContent
+	find_dependency(onnxruntime QUIET)
+endif()
+
 find_dependency(OpenCV 4.10.0 REQUIRED)
 find_dependency(spdlog 1.15.3 REQUIRED)
 find_dependency(yaml-cpp 0.8.0 REQUIRED)

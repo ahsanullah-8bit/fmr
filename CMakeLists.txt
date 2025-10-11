@@ -32,7 +32,12 @@ target_link_libraries(libfmr INTERFACE
    yaml-cpp::yaml-cpp
 )
 
+set(IS_MAIN_PROJECT OFF)
 if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+   set(IS_MAIN_PROJECT ON)
+endif()
+
+if (IS_MAIN_PROJECT)
    include(GNUInstallDirs)
    include(CMakePackageConfigHelpers)
 
