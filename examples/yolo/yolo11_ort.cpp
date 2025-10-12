@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
     } else if (is_video(source1)) {
         // Is a video
         fmr::frames_per_second fps;
-        fps.start();
+        // fps.start();
 
         std::unique_ptr<cv::VideoCapture> cap = std::make_unique<cv::VideoCapture>(source1);
         if (cap && !cap->isOpened()) {
