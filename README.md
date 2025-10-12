@@ -121,7 +121,7 @@ Util classes
 > fmr always prioritizes your configuration over any metadata embedded in the model. For instance, if you explicitly set a task type, that setting takes precedence over the model’s own metadata. 
 > This gives you full control and full responsibility.
 
-#### [model_config](#classes-and-structs)
+#### model_config
 
 ```c++
 // fmr/config/predictorconfig.hpp
@@ -131,7 +131,7 @@ struct model_config {   // considered for deprecation
 };
 ```
 
-#### [predictor_config](#classes-and-structs)
+#### predictor_config
 
 Just has a single property / option
 ```c++
@@ -142,7 +142,7 @@ struct predictor_config {
 };
 ```
 
-#### [yolo_config](#classes-and-structs)
+#### yolo_config
 
 All of these are optional. But some has default values, in case both the model and you fail to provide the needed configuration.
 
@@ -215,7 +215,7 @@ struct yolo_config {
 };
 ```
 
-#### [accelarator](#classes-and-structs)
+#### accelarator
 
 An abstract class, that can be inherited into subclass accelarators. `predict_raw`, `tensor_data`, and `tensor_shape` are a must to override.
 
@@ -261,7 +261,7 @@ protected:
 > [!NOTE]
 > You may introduce your own accelarator subclass and use it with the existing model classes, by overriding the necessary abstract methods. If you do so, you must use the setters to set the required private properties of the `accelarator` class.
 
-#### [onnxruntime](#classes-and-structs)
+#### onnxruntime
 
 A class inherited from accelarator, utilizing ONNXRuntime inference engine.
 
@@ -309,7 +309,7 @@ public:
 
 ```
 
-#### [yolo](#classes-and-structs)
+#### yolo
 
 ```c++
 // fmr/yolo/yolo.hpp
@@ -363,7 +363,7 @@ protected:
 };
 ```
 
-#### [prediction](#classes-and-structs)
+#### prediction
 
 A simple struct to hold a prediction, of all sorts. Only some of the members will be valid depending on the type of model.
 
@@ -382,7 +382,7 @@ struct prediction {
 };
 ```
 
-#### [keypoint](#classes-and-structs)
+#### keypoint
 
 A Struct used during Pose Estimation tasks.
 
@@ -395,7 +395,7 @@ struct keypoint {
 };
 ```
 
-#### [frames_per_second](#classes-and-structs)
+#### frames_per_second
 
 Utility class for FPS counting
 
@@ -404,9 +404,7 @@ Utility class for FPS counting
 
 class frames_per_second {
 public:
-    explicit frames_per_second(int max_frames = 1000, int last_n_seconds = 10);
-
-    void start();
+    explicit frames_per_second(double smoothing = 0.9);
     
     void update();
 
@@ -532,6 +530,11 @@ yolo11_ort -h   # to get a detailed usage guide.
 
 yolo11_ort --source "path/to/an/image-or-video" --model "assets/models/yolo11n-obb.onnx"
 ```
+#### yolo11_ort.exe
+
+This executable specifically is designed run YOLO11 models using ONNXRuntime CPU Execution Provider. You can however, run any model with similar in-out-tensor shapes. It supports inference on images and videos. Specifically, whatever OpenCV supports for both image and video format is supported. You also need one of the GUI backend libraries of OpenCV, when working with video files (i.e. Qt, Win32, ImGui, etc).
+
+For batch inferencing, set two sources `--source` and `--source2` of the same type. See [yolo_config](#yolo_config) class for details regarding batch size.
 
 ## CMake Integration
 fmr can be integrated into a CMake through several ways
