@@ -152,7 +152,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
     const auto &input_shapes = m_infer_session->input_shapes();
     // TODO: Support for models with more than 1 input shapes
     if(input_shapes.size() != 1) {
-        m_logger->warn(fmt::format("Only one input tensor was expected, got {}. Skipping prediction!", input_shapes.size()));
+        m_logger->warn("Only one input tensor was expected, got {}. Skipping prediction!", input_shapes.size());
         return {};
     }
 
@@ -328,7 +328,7 @@ inline void yolo::set_colors(const std::vector<cv::Scalar> &newColors)
 {
     size_t names_size = m_config->names.value().size();
     if (names_size != newColors.size()) {
-        m_logger->warn(fmt::format("Colors and names set mismatch, defaults will be used: {} != {}", names_size, newColors.size()));
+        m_logger->warn("Colors and names set mismatch, defaults will be used: {} != {}", names_size, newColors.size());
         return;
     }
 

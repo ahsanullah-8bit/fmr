@@ -197,7 +197,7 @@ namespace fmr {
     inline const float *onnxruntime::tensor_data(int index)
     {
         if (index < 0 || index >= m_lastOutputTensors.size()) {
-            m_logger->critical(fmt::format("Inavlid tensor index provided: {}"), index);
+            m_logger->critical("Inavlid tensor index provided: {}", index);
             return nullptr;
         }
 
@@ -207,7 +207,7 @@ namespace fmr {
     inline const std::vector<int64_t> onnxruntime::tensor_shape(int index)
     {
         if (index < 0 || index >= m_lastOutputTensors.size()) {
-            m_logger->critical(fmt::format("Inavlid tensor index provided: {}"), index);
+            m_logger->critical("Inavlid tensor index provided: {}", index);
             return {};
         }
 
@@ -218,28 +218,28 @@ namespace fmr {
     {
         const Ort::ModelMetadata &metadata = m_session.GetModelMetadata();
         m_logger->debug("Model metadata:");
-        m_logger->debug(fmt::format("\tFile: {}", m_config.model_path.value_or("").c_str()));
-        m_logger->debug(fmt::format("\tGraph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get()));
+        m_logger->debug("\tFile: {}", m_config.model_path.value_or("").c_str());
+        m_logger->debug("\tGraph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get());
 
         m_logger->debug("\tCustom Metadata:");
         for (const auto &[key, val] : model_metadata()) {
-            m_logger->debug(fmt::format("\t {}: ", key, val));
+            m_logger->debug("\t {}: ", key, val);
         }
 
         m_logger->debug("\tInputs:");
         const std::vector<const char *> &input_names_ = input_names();
         const std::vector<std::vector<int64_t>> &input_shapes_ = input_shapes();
         for (size_t i = 0; i < input_nodes(); ++i) {
-            m_logger->debug(fmt::format("\t  Name: {}", input_names_[i]));
-            m_logger->debug(fmt::format("\t  Type: {}", input_shapes_[i]));
+            m_logger->debug("\t  Name: {}", input_names_[i]);
+            m_logger->debug("\t  Type: {}", input_shapes_[i]);
         }
 
         m_logger->debug("\tOutputs:");
         const std::vector<const char *> &output_names_ = output_names();
         const std::vector<std::vector<int64_t>> &output_shapes_ = output_shapes();
         for (size_t i = 0; i < output_nodes(); ++i) {
-            m_logger->debug(fmt::format("\t  Name: {}", output_names_[i]));
-            m_logger->debug(fmt::format("\t  Shape: {}", output_shapes_[i]));
+            m_logger->debug("\t  Name: {}", output_names_[i]);
+            m_logger->debug("\t  Shape: {}", output_shapes_[i]);
         }
     }
 
