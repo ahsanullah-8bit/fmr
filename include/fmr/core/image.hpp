@@ -395,40 +395,8 @@ inline std::vector<int> nms_obbs(const std::vector<cv::RotatedRect>& boxes,
     return results;
 }
 
-inline std::vector<cv::Scalar> generate_colors(const std::unordered_map<int, std::string> &classNames,
-                                               int seed = 42)
+inline std::vector<cv::Scalar> generate_colors(size_t size, std::mt19937 &rng)
 {
-    static std::unordered_map<size_t, std::vector<cv::Scalar>> colorCache;
-
-    size_t hashKey = 0;
-    for (const auto& [_, name] : classNames) {
-        hashKey ^= std::hash<std::string>{}(name) + 0x9e3779b9 + (hashKey << 6) + (hashKey >> 2);
-    }
-
-    auto it = colorCache.find(hashKey);
-    if (it != colorCache.end()) {
-        return it->second;
-    }
-
-    std::vector<cv::Scalar> colors;
-    colors.reserve(classNames.size());
-
-    std::mt19937 rng(seed);
-    std::uniform_int_distribution<int> uni(0, 255);
-
-    for (size_t i = 0; i < classNames.size(); ++i) {
-        colors.emplace_back(cv::Scalar(uni(rng), uni(rng), uni(rng)));
-    }
-
-    // Cache the generated colors for future use
-    colorCache.emplace(hashKey, colors);
-
-    return colorCache[hashKey];
-}
-
-inline std::vector<cv::Scalar> generate_colors(size_t size)
-{
-    static std::mt19937 rng(size);
     std::uniform_real_distribution<float> hue_dist(0.0f, 180.0f);
 
     std::vector<cv::Scalar> colors;

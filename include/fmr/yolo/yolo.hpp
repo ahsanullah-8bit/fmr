@@ -98,6 +98,7 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
         throw std::runtime_error("No labels/names/classes were found. Please provide labels for this model!");
 
     // Specific
+    std::mt19937 rng(std::random_device{}());
     if (m_config->task == yolo_config::Pose) {
         // pose
         if (!m_config->kpt_shape && metadata.find("kpt_shape") != metadata.end()) {
@@ -128,17 +129,19 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
         }
 
         // colors
+        int total_colors = 17; // default of yolo11-pose
         if (m_colors.empty() && m_config->kpt_shape && !m_config->kpt_shape->empty()) {
             // Generate colors based on the amount of keypoints vs number of classes
-            m_colors = generate_colors(std::max(m_config->kpt_shape->at(0), static_cast<int>(m_config->names->size())));
+            total_colors = std::max(m_config->kpt_shape->at(0), static_cast<int>(m_config->names->size()));
         } else {
             m_logger->warn("Couldn't determine kpt_shape and generate colors, using default 17 colors");
-            m_colors = generate_colors(17);
         }
+
+        m_colors = generate_colors(total_colors, rng);
     }
 
     if (m_colors.empty())
-        m_colors = generate_colors(m_config->names.value().size());
+        m_colors = generate_colors(m_config->names.value().size(), rng);
 }
 
 inline yolo::~yolo()
