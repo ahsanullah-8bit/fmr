@@ -54,7 +54,7 @@ namespace fmr {
         std::shared_ptr<spdlog::logger> m_logger = spdlog::default_logger()->clone("fmr.accelators.ort");
     };
 
-    // definitions
+    // Definitions
 
     inline onnxruntime::onnxruntime(const predictor_config &config,
                                     std::shared_ptr<Ort::Env> env,
@@ -93,36 +93,6 @@ namespace fmr {
 
             m_available_eps = Ort::GetAvailableProviders();
 
-// #if 1
-//             if (std::find(m_available_eps.begin(), m_available_eps.end(), "CUDAExecutionProvider")
-//                 != m_available_eps.end()) {
-
-//                 OrtCUDAProviderOptions cudaOptions;
-//                 sessionOptions.AppendExecutionProvider_CUDA(cudaOptions);
-
-//                 m_selected_eps.emplace_back("CUDAExecutionProvider");
-//             } else {
-//                 m_logger->warn(fmt::format("Inference device {} not available", "CUDAExecutionProvider"));
-//             }
-// #endif
-
-// #if 1
-//             if (std::find(m_available_eps.begin(), m_available_eps.end(), "OpenVINOExecutionProvider")
-//                 != m_available_eps.end()) {
-
-//                 std::unordered_map<std::string, std::string> options;
-//                 options["device_type"] = "AUTO:GPU,CPU";
-//                 options["precision"] = "ACCURACY";
-//                 options["num_of_threads"] = "4";
-//                 sessionOptions.AppendExecutionProvider_OpenVINO_V2(options);
-
-//                 m_selected_eps.emplace_back("OpenVINOExecutionProvider");
-//             }
-//             else {
-//                 m_logger->warn(fmt::format("Inference device {} not available", "OpenVINOExecutionProvider"));
-//             }
-// #endif
-
             m_selected_eps.emplace_back("CPUExecutionProvider");
 
 #ifdef _WIN32
@@ -152,7 +122,7 @@ namespace fmr {
             set_input_names(std::move(input_names_));
             set_input_shapes(std::move(input_shapes_));
 
-            // output nodes
+            // Output nodes
             int output_nodes_ = m_session.GetOutputCount();
             std::vector<const char *> output_names_;
             std::vector<std::vector<int64_t>> output_shapes_;
@@ -169,7 +139,7 @@ namespace fmr {
             set_output_names(std::move(output_names_));
             set_output_shapes(std::move(output_shapes_));
 
-            // metadata
+            // Metadata
             std::unordered_map<std::string, std::string> model_metadata_;
             const auto &metadata = m_session.GetModelMetadata();
             const auto &keys = metadata.GetCustomMetadataMapKeysAllocated(m_allocator->get());

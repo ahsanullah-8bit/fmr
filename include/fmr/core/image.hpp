@@ -72,13 +72,13 @@ inline void letter_box(const cv::Mat& image, cv::Mat& outImage,
 
 inline void norm_and_permute(cv::Mat &img, float *&buffer, float scale = 1.0f / 255.0f)
 {
-    // normalize 0-1
+    // Normalize 0-1
     img.convertTo(img, CV_32FC3, scale);
 
     const int channels = img.channels();
     const int image_area = img.cols * img.rows;
 
-    // split and permute at once
+    // Split and permute at once
     std::vector<cv::Mat> out_channels(channels);
     for (int c = 0; c < channels; ++c)
         out_channels[c] = cv::Mat(img.rows, img.cols, CV_32FC1, buffer + c * image_area);
@@ -91,7 +91,7 @@ inline void norm_and_permute(std::vector<cv::Mat> &batch, std::vector<float> &bu
     if (batch.empty())
         return;
 
-    // expect 3 channels and buffer size exactly equal to (batch.size * img.area)
+    // Expect 3 channels and buffer size exactly equal to (batch.size * img.area)
     const cv::Mat &first = batch.at(0);
     if (first.channels() != 3
         || buffer.size() != batch.size() * 3 * first.cols * first.rows) {
@@ -139,7 +139,7 @@ inline void permute(const std::vector<cv::Mat> &batch,
         const int channels = img.channels();
         float *batch_offset = buffer.data() + b * channels * height * width;
 
-        // split and permute at once
+        // Split and permute at once
         std::vector<cv::Mat> out_channels(channels);
         for (int c = 0; c < channels; ++c)
             out_channels[c] = cv::Mat(height, width, CV_32FC1, batch_offset + c * height * width);
@@ -214,7 +214,7 @@ inline cv::RotatedRect scale_coords(const cv::Size& resizedImageShape,
     cv::RotatedRect result(cv::Point2f(cx, cy), cv::Size2f(w, h), coords.angle);
 
     if (clip) {
-        // clip corners instead of rect (since rotated)
+        // Clip corners instead of rect (since rotated)
         std::vector<cv::Point2f> pts(4);
         result.points(pts.data());
         for (auto& p : pts) {
@@ -257,13 +257,11 @@ inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boxes,
 {
 
     std::vector<int> result_indices;
-    // indices.clear();
-
     const size_t num_boxes = boxes.size();
     if (num_boxes < 1)
         return {};
 
-    // filter and sort based on scores
+    // Filter and sort based on scores
     std::vector<int> sorted_indices;
     sorted_indices.reserve(num_boxes);
     for (size_t i = 0; i < num_boxes; ++i) {
@@ -280,23 +278,23 @@ inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boxes,
                   return scores[idx1] > scores[idx2];
               });
 
-    // precompute box areas
+    // Precompute box areas
     std::vector<float> areas(num_boxes, 0.0f);
     for (size_t i = 0; i < num_boxes; ++i) {
         areas[i] = boxes[i].width * boxes[i].height;
     }
 
-    // suppression mask to mark suppressed boxes.
+    // Suppression mask to mark suppressed boxes.
     std::vector<bool> suppressed(num_boxes, false);
 
-    // suppress sorted boxes with high IoU
+    // Suppress sorted boxes with high IoU
     for (size_t i = 0; i < sorted_indices.size(); ++i) {
         const int current_idx = sorted_indices[i];
         if (suppressed[current_idx]) {
             continue;
         }
 
-        // select the current box as a valid detection
+        // Select the current box as a valid detection
         result_indices.push_back(current_idx);
 
         const cv::Rect& current_box = boxes[current_idx];
@@ -306,7 +304,7 @@ inline std::vector<int> nms_bboxes(const std::vector<cv::Rect>& boxes,
         const float y2_max = current_box.y + current_box.height;
         const float area_current = areas[current_idx];
 
-        // compare IoU of the current box with the rest
+        // Compare IoU of the current box with the rest
         for (size_t j = i + 1; j < sorted_indices.size(); ++j) {
             int compare_idx = sorted_indices[j];
             if (suppressed[compare_idx]) {
@@ -361,7 +359,7 @@ inline std::vector<int> nms_obbs(const std::vector<cv::RotatedRect>& boxes,
     if (num_boxes < 1)
         return {};
     
-    // filter based on scores
+    // Filter based on scores
     std::vector<int> sorted_indices;
     sorted_indices.reserve(num_boxes);
     for (size_t i = 0; i < num_boxes; ++i) {
@@ -374,7 +372,7 @@ inline std::vector<int> nms_obbs(const std::vector<cv::RotatedRect>& boxes,
         return {};
     
     std::iota(sorted_indices.begin(), sorted_indices.end(), 0);
-    // sort based on scores
+    // Sort based on scores
     std::sort(sorted_indices.begin(), sorted_indices.end(),
               [&scores](int idx1, int idx2) {
                   return scores[idx1] > scores[idx2];
@@ -491,7 +489,7 @@ inline void draw_bboxes(cv::Mat &image,
         const cv::Point label_tl(prediction.box.x, label_y - text_size.height - 5);
         const cv::Point label_br(prediction.box.x + text_size.width + 5, label_y + baseline - 5);
 
-        // label background
+        // Label background
         cv::rectangle(image, label_tl, label_br, color, cv::FILLED);
         cv::putText(image, label, cv::Point(prediction.box.x + 2, label_y - 2),
                     font_face, font_scale, cv::Scalar(255, 255, 255),
@@ -578,11 +576,11 @@ inline void draw_keypoints(cv::Mat &image,
         const size_t num_kpts = prediction.points.size();
         const std::vector<keypoint> &kpts = prediction.points;
 
-        // draw keypoints
+        // Draw keypoints
         for (size_t i = 0; i < num_kpts; ++i)
             cv::circle(image, kpts[i].point, kpt_radius, colors[i % colors.size()], -1, cv::LINE_AA);
 
-        // draw skeleton connections
+        // Draw skeleton connections
         for (size_t j = 0; j < poseSkeleton.size(); ++j) {
             const auto [src, dst] = poseSkeleton[j];
             if (src < num_kpts && dst < num_kpts) {
@@ -665,7 +663,7 @@ inline void draw_classifications(cv::Mat &image,
         const cv::Point tl(x, y);
         const cv::Point br(x + text_size.width + 2 * padding, y + text_size.height + baseline + 2 * padding);
 
-        // label background
+        // Label background
         cv::rectangle(image, tl, br, color, cv::FILLED, cv::LINE_AA);
         cv::putText(image,
                     label,

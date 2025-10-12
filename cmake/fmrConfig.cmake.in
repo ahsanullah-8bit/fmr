@@ -3,10 +3,10 @@
 include(CMakeFindDependencyMacro)
 
 if (@IS_MAIN_PROJECT@)
-    # is being built as a separate project and integrated
+    # Is being built as a separate project and integrated
 	find_dependency(onnxruntime REQUIRED)
 else()
-    # is a sub-project, either through submodule'ing or FetchContent
+    # Is a sub-project, either through submodule'ing or FetchContent
 	find_dependency(onnxruntime QUIET)
 endif()
 

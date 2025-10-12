@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
         std::exit(1);
     }
 
-    // validate source files
+    // Validate source files
     std::string source1 = parser.get<std::string>("--source");
     if (!std::filesystem::exists(source1)) {
         logger->critical("Selected source file doesn't exist. Please provide a valid source file!");
@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
         logger->critical("Selected 2nd source file doesn't exist. Please provide a valid source file!");
     }
 
-    // model path is already validated by the fmr::onnxruntime
+    // Model path is already validated by the fmr::onnxruntime
     fmr::predictor_config ort_config;
     ort_config.model_path = parser.get<std::string>("--model");
 
@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
 
     std::string win_name = "YOLO11-1st", win2_name = "YOLO11-2nd";
     if (is_image(source1)) {
-        // is an image
+        // Is an image
         std::vector<cv::Mat> batch = { cv::imread(source1) };
 
         bool is_valid_img2 = !source2.empty() && is_image(source2);
@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
 
         cv::waitKey();
     } else if (is_video(source1)) {
-        // is a video
+        // Is a video
         fmr::frames_per_second fps;
         fps.start();
 
@@ -147,7 +147,7 @@ int main(int argc, char* argv[])
                     batch.emplace_back(frame2);
             }
 
-            // inference
+            // Inference
             std::vector<fmr::predictions_t> predictions = yolo.predict(batch);
             yolo.draw(batch, predictions);
 
@@ -166,12 +166,12 @@ int main(int argc, char* argv[])
             if (key == 'q' || key == 27) // 'q' or ESC
                 break;
 
-            // check if window was closed
+            // Check if window was closed
             if (cap && cv::getWindowProperty(win_name, cv::WND_PROP_VISIBLE) < 1) {
                 cap = nullptr;
             }
 
-            // check if window was closed
+            // Check if window 2 was closed
             if (cap2 && cv::getWindowProperty(win2_name, cv::WND_PROP_VISIBLE) < 1) {
                 cap2 = nullptr;
             }
@@ -192,7 +192,7 @@ bool is_image(const std::string& filename)
         ".tif", ".tiff", ".pbm", ".pgm", ".ppm", ".sr", ".ras", ".webp"
     };
 
-    // extract lowercase extension from filename
+    // Extract lowercase extension from filename
     size_t dot_pos = filename.find_last_of('.');
     std::string ext = filename.substr(dot_pos);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -209,7 +209,7 @@ bool is_video(const std::string& filename)
         ".avi", ".mp4", ".mov", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv"
     };
 
-    // extract lowercase extension from filename
+    // Extract lowercase extension from filename
     size_t dot_pos = filename.find_last_of('.');
     std::string ext = filename.substr(dot_pos);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -249,18 +249,18 @@ void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img)
     for (const auto &metric : metrics) {
         cv::Size text_size = cv::getTextSize(metric, font_face, font_scale, font_thickness, &baseline);
 
-        // background box (a little padding)
+        // Background box (a little padding)
         cv::rectangle(img,
                       cv::Point(0, y - text_size.height - baseline),
                       cv::Point(text_size.width + 5, y + baseline),
                       cv::Scalar(255, 255, 255), cv::FILLED);
 
-        // put the text
+        // Put the text
         cv::putText(img, metric, cv::Point(2, y),
                     font_face, font_scale,
                     cv::Scalar(0, 0, 0), font_thickness, cv::LINE_AA);
 
-        // move y down for next line
+        // Pove y down for next line
         y += text_size.height + baseline + 5; // add spacing
     }
 }

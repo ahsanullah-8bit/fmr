@@ -43,7 +43,7 @@ private:
     std::shared_ptr<spdlog::logger> m_logger = spdlog::default_logger()->clone("fmr.yolo");
 };
 
-// definition
+// Definition
 
 inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yolo_config> config, std::vector<cv::Scalar> colors)
     : m_infer_session(inferSession)
@@ -52,7 +52,7 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
     if (!config)
         m_config = std::make_shared<yolo_config>();
 
-    // pull out yolo specific metadata
+    // Pull out yolo specific metadata
     const std::unordered_map<std::string, std::string> &metadata = m_infer_session->model_metadata();
 
     if ((!m_config->task || m_config->task == yolo_config::Uknown) && metadata.find("task") != metadata.end()) {
@@ -61,21 +61,21 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
         throw std::runtime_error("Please specify a valid yolo task in the config");
     }
 
-    // common
+    // Common
     if (!m_config->stride && metadata.find("stride") !=  metadata.end())
         m_config->stride = std::stoi(metadata.at("stride"));
 
     if (!m_config->batch) {
-        // user didn't provide batch
+        // User didn't provide batch
         if (metadata.find("batch") !=  metadata.end()){
-            // assign what model metadata has
+            // Assign what model metadata has
             m_config->batch = std::stoi(metadata.at("batch"));
         } else {
-            // fallback to 1 (dynamic) or input shape (fixed)
+            // Fallback to 1 (dynamic) or input shape (fixed)
             m_config->batch = has_dyn_batch() ? 1 : inferSession->input_shapes().at(0).at(0);
         }
     } else {
-        // fixed? compare with input shape. if mismatch, enfore
+        // Fixed shape? compare with input shape. if mismatch, enfore
         if (!has_dyn_batch()
             && inferSession->input_shapes().at(0).at(0) != m_config->batch.value())
             m_config->batch = inferSession->input_shapes().at(0).at(0);
@@ -97,7 +97,7 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
     else
         throw std::runtime_error("No labels/names/classes were found. Please provide labels for this model!");
 
-    // specific
+    // Specific
     if (m_config->task == yolo_config::Pose) {
         // pose
         if (!m_config->kpt_shape && metadata.find("kpt_shape") != metadata.end()) {
@@ -129,7 +129,7 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
 
         // colors
         if (m_colors.empty() && m_config->kpt_shape && !m_config->kpt_shape->empty()) {
-            // generate colors based on the amount of keypoints vs number of classes
+            // Generate colors based on the amount of keypoints vs number of classes
             m_colors = generate_colors(std::max(m_config->kpt_shape->at(0), static_cast<int>(m_config->names->size())));
         } else {
             m_logger->warn("Couldn't determine kpt_shape and generate colors, using default 17 colors");
@@ -360,7 +360,7 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
         std::vector<int> class_ids;
         std::vector<cv::Rect> nms_boxes;
 
-        /*
+        /* i.e.
          * We got 8400 detections, per 84 features, per image in a batch.
          * D (detections) being the fastest-varying, then F (features) and then B (batch)
          * The structure of each batch is laid out something like this for [B, F, D]
@@ -380,8 +380,8 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
         */
         const float *batch_offsetptr = output0_data + p * (out_num_features * out_num_detections); // jumps p * 84 * 8400 for batch p.
         for (size_t i = 0; i < out_num_detections; ++i) {
-            // since its [B, F, D], not [B, D, F]. we hover over each feature's detections
-            // we find the score first, to filter out low confidence detections, even though
+            // Since its [B, F, D], not [B, D, F]. we hover over each feature's detections.
+            // We find the score first, to filter out low confidence detections, even though
             // it comes after the box values
             int class_id = -1;
             float max_score = 0.0f;
@@ -402,7 +402,7 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
             const float h = batch_offsetptr[3 * out_num_detections + i];
 
             const cv::Rect box(cx - w / 2.0f, cy - h / 2.0f, w, h); // from (cx, cy, w, h) to (x, y, w, h)
-            // adjust NMS box coordinates to prevent overlap between classes
+            // Adjust NMS box coordinates to prevent overlap between classes
             cv::Rect nms_box = box;
             nms_box.x += class_id * 7880;
             nms_box.y += class_id * 7880;
@@ -413,7 +413,7 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
             nms_boxes.emplace_back(nms_box);
         }
 
-        // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
+        // Apply Non-Maximum Suppression (NMS) to eliminate redundant detections
         const std::vector<int> indices = nms_bboxes(nms_boxes, scores, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
 
         const auto &labels = m_config->names.value();
@@ -437,7 +437,7 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
 
 inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
 {
-    // expected shape [1, num_features, num_detections]
+    // Expected shape [1, num_features, num_detections]
     const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
     const float* output0_data = m_infer_session->tensor_data(0);
 
@@ -455,7 +455,6 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
         std::vector<int> class_ids;
 
         /*
-         * We got 8400 detections, per 84 features, per image in a batch.
          * D (detections) being the fastest-varying, then F (features) and then B (batch)
          * The structure of each batch is laid out something like this for [B, F, D]
             Batch 0
@@ -472,9 +471,9 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
                 ...
             ...
         */
-        const float *batch_offsetptr = output0_data + p * (out_num_features * out_num_detections); // jumps p * 84 * 8400 for batch p.
+        const float *batch_offsetptr = output0_data + p * (out_num_features * out_num_detections);
         for (size_t i = 0; i < out_num_detections; ++i) {
-            // since its [B, F, D], not [B, D, F]. we hover over each feature's detections
+            // Since its [B, F, D], not [B, D, F]. we hover over each feature's detections
             // expected layout: cx, cy, w, h, scores, angle
             int class_id = -1;
             float max_score = 0.0f;
@@ -499,9 +498,9 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
             const cv::RotatedRect coords(cv::Point2f(cx, cy), cv::Size2f(w, h), angle_deg);
             const cv::RotatedRect scaled_obb = scale_coords(res_size, coords, orig_size, true);
 
-            // adjust NMS box coordinates to prevent overlap between classes
+            // Adjust NMS box coordinates to prevent overlap between classes
             cv::RotatedRect nms_obb = scaled_obb;
-            // arbitrary offset to differentiate classes
+            // Arbitrary offset to differentiate classes
             nms_obb.center.x += class_id * 7880;
             nms_obb.center.y += class_id * 7880;
 
@@ -511,7 +510,7 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
             nms_obbs_.emplace_back(nms_obb);
         }
 
-        // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
+        // Apply Non-Maximum Suppression (NMS) to eliminate redundant detections
         const std::vector<int> indices = nms_obbs(nms_obbs_, scores, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
 
         const auto &labels = m_config->names.value();
@@ -558,7 +557,6 @@ inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<
         std::vector<int> class_ids;
 
         /*
-         * We got 8400 detections, of each of 17 features, of each batch.
          * D (detections) being the fastest-varying, then F (features) and then B (batch)
          * The structure of each batch is laid out something like this for [B, F, D]
             Batch 0
@@ -622,7 +620,7 @@ inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<
             class_ids.emplace_back(class_id);
         }
 
-        // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
+        // Apply Non-Maximum Suppression (NMS) to eliminate redundant detections
         const std::vector<int> indices = nms_bboxes(nms_boxes, scores, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
 
         const auto &labels = m_config->names.value();
@@ -668,7 +666,6 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
     for (size_t p = 0; p < sel_batch_size; ++p) {
 
         /*
-         * We got 8400 detections, per 84 features, per image in a batch.
          * D (detections) being the fastest-varying, then F (features) and then B (batch)
          * The structure of each batch is laid out something like this for [B, F, D]
             Batch 0
@@ -702,8 +699,8 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
         std::vector<std::vector<float>> mask_coefs_list;
 
         for (size_t i = 0; i < out_num_detections; ++i) {
-            // since its [B, F, D], not [B, D, F]. we hover over each feature's detections
-            // we find the score first, to filter out low confidence detections, even though
+            // Since its [B, F, D], not [B, D, F]. we hover over each feature's detections.
+            // We find the score first, to filter out low confidence detections, even though
             // it comes after the box values
             int class_id = -1;
             float max_score = 0.0f;
@@ -729,7 +726,7 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
             }
 
             const cv::Rect box(cx - w / 2.0f, cy - h / 2.0f, w, h); // from (cx, cy, w, h) to (x, y, w, h)
-            // adjust NMS box coordinates to prevent overlap between classes
+            // Adjust NMS box coordinates to prevent overlap between classes
             cv::Rect nms_box = box;
             nms_box.x += class_id * 7880;
             nms_box.y += class_id * 7880;
@@ -741,7 +738,7 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
             mask_coefs_list.emplace_back(mask_coefs);
         }
 
-        // apply Non-Maximum Suppression (NMS) to eliminate redundant detections
+        // Apply Non-Maximum Suppression (NMS) to eliminate redundant detections
         const std::vector<int> indices = nms_bboxes(nms_boxes, scores, m_config->confidence.value_or(0.4f), m_config->iou_threshold.value_or(0.4f));
 
         const cv::Size orig_img_size(batch[batch_indx + p].cols, batch[batch_indx + p].rows);
@@ -762,9 +759,8 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
         x2 = std::max(x1, std::min(x2, out_mask_w));
         y2 = std::max(y1, std::min(y2, out_mask_h));
 
-        // bail early if invalid (rare)
         if (x2 <= x1 || y2 <= y1) {
-            // skip all detections, no valid crop possible
+            // Skip all detections, no valid crop possible
             return predictions_list;
         }
 
@@ -785,7 +781,7 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
             prediction.label_id = class_ids[idx];
             prediction.label = labels.at(prediction.label_id);
 
-            // process mask
+            // Process mask
             cv::Mat coeffs(1, out_num_masks, CV_32F); // coeffs: 1 x M
             const std::vector<float>& mask_coefs = mask_coefs_list[idx];
 
@@ -835,10 +831,10 @@ inline std::vector<predictions_t> yolo::postprocess_classifications(const std::v
     for (size_t p = 0; p < sel_batch_size; ++p) {
         const float *batch_offsetptr = output0_data + p * out_num_logits;
 
-        // max logit for numerical stability
+        // Max logit for numerical stability
         float max_logit = *std::max_element(batch_offsetptr, batch_offsetptr + out_num_logits);
 
-        // softmax probabilities
+        // Softmax probabilities
         float sum_exp = 0.0f;
         std::vector<float> exps(out_num_logits);
         for (int i = 0; i < out_num_logits; ++i) {

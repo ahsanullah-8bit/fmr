@@ -43,12 +43,10 @@ private:
     std::vector<const char *> m_output_names;
 };
 
-// definitions
+// Definitions
 
 inline void accelerator::print_metadata() const
-{
-    fmt::detail::assert_fail(__FILE__, __LINE__, "Abstract print_metadata called. Please override an implementation for your custom class!");
-}
+{}
 
 inline const std::unordered_map<std::string, std::string> &accelerator::model_metadata() const
 {

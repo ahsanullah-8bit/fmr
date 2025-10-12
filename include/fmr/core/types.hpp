@@ -17,8 +17,7 @@ namespace fmr {
         cv::Rect box;
         cv::RotatedRect obb;
         cv::Mat mask;  // single-channel (8UC1) mask in full resolution
-        // contains cv::Point2f, and conf
-        std::vector<keypoint> points;
+        std::vector<keypoint> points; // contains cv::Point2f, and conf
     };
     using predictions_t = std::vector<prediction>;
 }

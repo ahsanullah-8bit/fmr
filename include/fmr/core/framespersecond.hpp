@@ -24,13 +24,13 @@ namespace fmr {
             std::unique_lock<std::shared_mutex> lock(m_mtx);
             auto now = std::chrono::steady_clock::now();
             if (m_start.time_since_epoch().count() == 0.0) {
-                // initialize the first time
+                // Initialize the first time
                 m_start = now;
             }
 
             m_timestamps.emplace_back(now);
             if (m_timestamps.size() > m_max_frames + 100) {
-                // truncate the list when it goes 100 over the max_size.
+                // Truncate the list when it goes 100 over the max_size.
                 m_timestamps.erase(m_timestamps.begin() + (m_timestamps.size() - m_max_frames), m_timestamps.end());
             }
 
@@ -44,10 +44,10 @@ namespace fmr {
                 m_start = now;
             }
 
-            // compute the (approximate) frames in the last n seconds
+            // Compute the (approximate) frames in the last n seconds
             expire_timestamps(now);
             auto seconds = std::min(std::chrono::duration_cast<std::chrono::seconds>(now - m_start).count(), m_last_nsecs.count());
-            // avoid divide by zero
+            // Avoid divide by zero
             if (seconds == 0.0) {
                 seconds = 1.0;
             }
@@ -56,7 +56,7 @@ namespace fmr {
         }
 
     private:
-        // remove aged out timestamps
+        // Remove aged out timestamps
         void expire_timestamps(time_point now) {
             time_point threshold = now - m_last_nsecs;
             while (!m_timestamps.empty() && m_timestamps.front() < threshold) {
