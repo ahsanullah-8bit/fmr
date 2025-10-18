@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <fmr/accelarators/accelerator.hpp>
 #include <fmr/config/predictorconfig.hpp>
@@ -26,9 +27,10 @@ namespace fmr {
 
         void predict_raw(std::vector<std::vector<float>> &data,
                                  std::vector<std::vector<int64_t>> customInputShapes = {}) override;
-        void set_run_options(std::shared_ptr<Ort::RunOptions> runOptions);
         const float *tensor_data(int index) override;
         const std::vector<int64_t> tensor_shape(int index) override;
+        void set_run_options(std::shared_ptr<Ort::RunOptions> runOptions);
+        void set_logger(std::shared_ptr<spdlog::logger> logger) override;
 
         void print_metadata() const override;
         OrtAllocator* allocator() const;
@@ -51,7 +53,7 @@ namespace fmr {
 
         std::vector<Ort::Value> m_lastOutputTensors;
 
-        std::shared_ptr<spdlog::logger> m_logger = spdlog::default_logger()->clone("fmr.accelators.ort");
+        std::shared_ptr<spdlog::logger> m_logger;
     };
 
     // Definitions
@@ -67,6 +69,8 @@ namespace fmr {
         , m_memory_info(memoryInfo)
         , m_logger(spdlog::default_logger()->clone("fmr.accelators.ort"))
     {
+        m_logger->set_level(spdlog::level::debug);
+
         if (!config.model_path.has_value())
             throw std::runtime_error("Invalid config, please provide a valid config with model info!");
 
@@ -189,11 +193,6 @@ namespace fmr {
             );
     }
 
-    inline void onnxruntime::set_run_options(std::shared_ptr<Ort::RunOptions> runOptions)
-    {
-        m_run_options = runOptions;
-    }
-
     inline const float *onnxruntime::tensor_data(int index)
     {
         if (index < 0 || index >= m_lastOutputTensors.size()) {
@@ -214,32 +213,43 @@ namespace fmr {
         return m_lastOutputTensors.at(index).GetTensorTypeAndShapeInfo().GetShape();
     }
 
+    inline void onnxruntime::set_run_options(std::shared_ptr<Ort::RunOptions> runOptions)
+    {
+        m_run_options = runOptions;
+    }
+
+    inline void onnxruntime::set_logger(std::shared_ptr<spdlog::logger> logger)
+    {
+        m_logger = logger;
+    }
+
     inline void onnxruntime::print_metadata() const
     {
         const Ort::ModelMetadata &metadata = m_session.GetModelMetadata();
         m_logger->debug("Model metadata:");
-        m_logger->debug("\tFile: {}", m_config.model_path.value_or("").c_str());
-        m_logger->debug("\tGraph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get());
+        m_logger->debug("  File: {}", m_config.model_path.value_or("").c_str());
+        m_logger->debug("  Graph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get());
 
-        m_logger->debug("\tCustom Metadata:");
-        for (const auto &[key, val] : model_metadata()) {
-            m_logger->debug("\t {}: ", key, val);
+        m_logger->debug("  Custom Metadata:");
+        const auto metadata_metadata = model_metadata();
+        for (const auto &[key, val] : metadata_metadata) {
+            m_logger->debug("    {}: {}", key, val);
         }
 
-        m_logger->debug("\tInputs:");
+        m_logger->debug("  Inputs:");
         const std::vector<const char *> &input_names_ = input_names();
         const std::vector<std::vector<int64_t>> &input_shapes_ = input_shapes();
         for (size_t i = 0; i < input_nodes(); ++i) {
-            m_logger->debug("\t  Name: {}", input_names_[i]);
-            m_logger->debug("\t  Type: {}", input_shapes_[i]);
+            m_logger->debug("    Name: {}", input_names_[i]);
+            m_logger->debug("    Type: {}", input_shapes_[i]);
         }
 
-        m_logger->debug("\tOutputs:");
+        m_logger->debug("  Outputs:");
         const std::vector<const char *> &output_names_ = output_names();
         const std::vector<std::vector<int64_t>> &output_shapes_ = output_shapes();
         for (size_t i = 0; i < output_nodes(); ++i) {
-            m_logger->debug("\t  Name: {}", output_names_[i]);
-            m_logger->debug("\t  Shape: {}", output_shapes_[i]);
+            m_logger->debug("    Name: {}", output_names_[i]);
+            m_logger->debug("    Shape: {}", output_shapes_[i]);
         }
     }
 

@@ -1,8 +1,11 @@
 #pragma once
 
 #include <cassert>
+#include <memory>
 #include <string>
 #include <unordered_map>
+
+#include <spdlog/logger.h>
 
 #include <fmt/os.h>
 
@@ -14,6 +17,7 @@ public:
                                      std::vector<std::vector<int64_t> > customInputShapes = {}) = 0;
     virtual const float *tensor_data(int index) = 0;
     virtual const std::vector<int64_t> tensor_shape(int index) = 0;
+    virtual void set_logger(std::shared_ptr<spdlog::logger> logger) = 0;
     virtual void print_metadata() const;
 
     const std::unordered_map<std::string, std::string>& model_metadata() const;
