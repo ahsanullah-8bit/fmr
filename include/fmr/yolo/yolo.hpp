@@ -26,6 +26,7 @@ public:
     std::shared_ptr<yolo_config> config() const;
     const std::vector<cv::Scalar> &colors() const;
     void set_colors(const std::vector<cv::Scalar> &newColors);
+    void set_logger(std::shared_ptr<spdlog::logger> logger);
 
 protected:
     std::unique_ptr<accelerator> &infer_session();
@@ -40,7 +41,7 @@ private:
     std::shared_ptr<yolo_config> m_config;
     std::vector<cv::Scalar> m_colors;
 
-    std::shared_ptr<spdlog::logger> m_logger = spdlog::default_logger()->clone("fmr.yolo");
+    std::shared_ptr<spdlog::logger> m_logger;
 };
 
 // Definition
@@ -48,7 +49,10 @@ private:
 inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yolo_config> config, std::vector<cv::Scalar> colors)
     : m_infer_session(inferSession)
     , m_config(config)
+    , m_logger(spdlog::default_logger()->clone("fmr.yolo"))
 {
+    m_logger->set_level(spdlog::level::debug);
+
     if (!config)
         m_config = std::make_shared<yolo_config>();
 
@@ -336,6 +340,11 @@ inline void yolo::set_colors(const std::vector<cv::Scalar> &newColors)
     }
 
     m_colors = newColors;
+}
+
+inline void yolo::set_logger(std::shared_ptr<spdlog::logger> logger)
+{
+    m_logger = logger;
 }
 
 inline std::unique_ptr<accelerator> &yolo::infer_session()
