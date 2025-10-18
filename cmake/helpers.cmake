@@ -1,6 +1,8 @@
 include_guard()
 
 # Populates all the required dependencies, that can't be done otherwise.
+# WARNING: This can't work with integration as add_subdirectory in all cases, as
+# this function will determine CMAKE_SOURCE_DIR and others from the POV of the caller.
 function(fmr_init_dependencies)
 	include (FetchContent)
 	cmake_policy(SET CMP0169 OLD)
@@ -9,7 +11,7 @@ function(fmr_init_dependencies)
 	set(FETCHCONTENT_GIT_PROGRESS ON)
 
 	include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
-	include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/openvino.cmake)
+	# include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/openvino.cmake)
 
 endfunction() # fmr_init_dependencies
 

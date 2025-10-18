@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
+cmake_policy(SET CMP0169 OLD)
 
 project(fmr VERSION 0.1 LANGUAGES CXX)
 
@@ -9,8 +10,13 @@ option(FMR_BUILD_EXAMPLES "Build examples" OFF)
 option(FMR_BUILD_TESTS "Build tests" OFF)
 option(FMR_ORT "ONNXRuntime support" ON)
 
+include (FetchContent)
+set(FETCHCONTENT_QUIET OFF)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+set(FETCHCONTENT_GIT_PROGRESS ON)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
 include(cmake/helpers.cmake)
-fmr_init_dependencies()
 
 find_package(onnxruntime CONFIG REQUIRED)
 find_package(OpenCV 4.10.0 CONFIG REQUIRED)
