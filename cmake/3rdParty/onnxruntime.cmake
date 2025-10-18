@@ -22,7 +22,7 @@ if (ORT_URL AND ORT_URL_HASH)
 
 		FetchContent_Declare(onnxruntime
 			URL ${ORT_URL}
-			URL_HASH ${ORT_URL}
+			URL_HASH ${ORT_URL_HASH}
 		)
 	    FetchContent_MakeAvailable(onnxruntime)
 		FetchContent_GetProperties(onnxruntime)
