@@ -83,12 +83,50 @@ need to provide everything. For a detailed guide, see [Classes](#classes).
 ## Models Supported
 
 These are some of the models tested with fmr
-- YOLO11 (detect, obb, segment, pose, classify) of all sizes.
-- YOLOv10n
-- YOLOv9(c,t)
-- YOLOv8 (detect, obb, segment, pose, classify) of all sizes.
-- YOLOv5nu
-- YOLOv3-tinyu
+
+- YOLOv3 ✅
+  - YOLOv3u
+  - YOLOv3-tinyu
+  - YOLOv3-sppu
+
+- YOLOv4
+
+- YOLOv5 ✅
+  - YOLOv5nu
+  - YOLOv5n6u
+
+- YOLOv6 ❌
+  - YOLOv6n
+
+- YOLOv7
+
+- YOLOv8 ✅
+  - YOLOv8n
+  - YOLOv8n-oiv7
+  - YOLOv8n-obb
+  - YOLOv8n-pose
+  - YOLOv8n-seg
+  - YOLOv8n-cls
+
+- YOLOv9 ✅
+  - YOLOv9t
+  - YOLOv9c-seg
+
+- YOLOv10 ❌
+
+- YOLO11 ✅
+  - YOLO11n
+  - YOLO11n-obb
+  - YOLO11n-pose
+  - YOLO11n-seg
+  - YOLO11n-cls
+
+- YOLO12 🔃
+  - YOLO12n ✅
+  - YOLO12n-obb
+  - YOLO12n-pose
+  - YOLO12n-seg
+  - YOLO12n-cls
 
 > [!NOTE]
 > Models modified or customized may work, if they expect similar pre-and-post processing techniques to that of the above.
