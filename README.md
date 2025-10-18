@@ -11,6 +11,7 @@
 * [Detailed Usage](#detailed-usage)
     * [Classes and Structs](#classes-and-structs)
     * [Functions](#functions)
+    * [Logging](#logging)
     * [Examples](#examples)
 * [CMake Integration](#cmake-integration)
     * [Requirements](#requirements)
@@ -272,6 +273,9 @@ public:
     // returns a tensor shape using an index
     virtual const std::vector<int64_t> tensor_shape(int index) = 0;
 
+    // sets a custom logger, overriding the default
+    virtual void set_logger(std::shared_ptr<spdlog::logger> logger) = 0;
+
     // print metadata of the model, including input/output tensor details
     virtual void print_metadata() const;
 
@@ -325,6 +329,9 @@ public:
     // sets run options for the ORT session
     // [optional] but it must be set before using predict_raw, to enforce customization
     void set_run_options(std::shared_ptr<Ort::RunOptions> runOptions);
+
+    // sets a custom logger, overriding the default
+    void set_logger(std::shared_ptr<spdlog::logger> logger) override;
 
     // returns tensor data pointer from ORT tensors
     const float *tensor_data(int index) override;
@@ -385,6 +392,9 @@ public:
 
     // sets the colors for drawing
     void set_colors(const std::vector<cv::Scalar> &newColors);
+
+    // sets a custom logger, overriding the default
+    void set_logger(std::shared_ptr<spdlog::logger> logger);
 
 protected:
     // returns the accelarator being used by this instance
@@ -559,6 +569,9 @@ void draw_classifications(cv::Mat &image,
                           float maskAlpha = 1.0f);
 
 ```
+
+### Logging
+fmr uses [spdlog](https://github.com/gabime/spdlog), which is very customizable. Each major class like `accelarator` (and child-classes), `yolo`, etc. has a default logger with `spdlog::level::debug` logging level. But you can set another through `set_logger(...)`.
 
 ### Examples
 Look into the `examples` folder for detailed examples. Use `FMR_BUILD_EXAMPLES=ON` to build them along with the library. After build, use them like any other CLI tool. i.e.
