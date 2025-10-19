@@ -12,13 +12,12 @@ elseif(LINUX)
 	set(ORT_URL_HASH "")
 endif()
 
-if (ORT_URL AND ORT_URL_HASH)
-	if (onnxruntime_DIR AND NOT onnxruntime_DIR STREQUAL "")
-		set(onnxruntime_ROOT "${onnxruntime_DIR}/../../../" CACHE STRING "Path to onnxruntime root directory")
-	elseif (onnxruntime_ROOT AND NOT onnxruntime_ROOT STREQUAL "")
-		set(onnxruntime_DIR "${onnxruntime_ROOT}/lib/cmake/onnxruntime" CACHE STRING "Path to onnxruntime config files")
-	else()
-		message(NOTICE "--- Setting up onnxruntime ---")
+if (onnxruntime_DIR AND NOT onnxruntime_DIR STREQUAL "")
+	set(onnxruntime_ROOT "${onnxruntime_DIR}/../../../" CACHE STRING "Path to onnxruntime root directory")
+elseif (onnxruntime_ROOT AND NOT onnxruntime_ROOT STREQUAL "")
+	set(onnxruntime_DIR "${onnxruntime_ROOT}/lib/cmake/onnxruntime" CACHE STRING "Path to onnxruntime config files")
+elseif (ORT_URL AND ORT_URL_HASH)
+	    message(NOTICE "--- Setting up onnxruntime ---")
 
 		FetchContent_Declare(onnxruntime
 			URL ${ORT_URL}
@@ -33,6 +32,6 @@ if (ORT_URL AND ORT_URL_HASH)
 		endif()
 
 		message(NOTICE "--- Setup onnxruntime completed ---")
-	endif()
-
+else()
+	message(WARNING "Please set a valid path to onnxruntime_DIR.")
 endif()

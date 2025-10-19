@@ -11,22 +11,22 @@ elseif (LINUX)
 	set(OV_URL_HASH )
 endif()
 
-if (OV_URL AND OV_URL_HASH)
-	if (OpenVINO_DIR AND NOT OpenVINO_DIR STREQUAL "")
-		set(OpenVINO_ROOT "${OpenVINO_DIR}/../../" CACHE STRING "Path to OpenVINO root directory")
-	elseif(OpenVINO_ROOT AND NOT OpenVINO_ROOT STREQUAL "")
-		set(OpenVINO_DIR "${OpenVINO_ROOT}/runtime/cmake" CACHE STRING "Path to OpenVINO config files")
-	else()
-		FetchContent_Declare(OpenVINO
-			URL ${OV_URL}
-			URL_HASH ${OV_URL_HASH}
-		)
-	    FetchContent_MakeAvailable(OpenVINO)
-		FetchContent_GetProperties(OpenVINO)
+if (OpenVINO_DIR AND NOT OpenVINO_DIR STREQUAL "")
+	set(OpenVINO_ROOT "${OpenVINO_DIR}/../../" CACHE STRING "Path to OpenVINO root directory")
+elseif(OpenVINO_ROOT AND NOT OpenVINO_ROOT STREQUAL "")
+	set(OpenVINO_DIR "${OpenVINO_ROOT}/runtime/cmake" CACHE STRING "Path to OpenVINO config files")
+elseif (OV_URL AND OV_URL_HASH)
+	FetchContent_Declare(OpenVINO
+		URL ${OV_URL}
+		URL_HASH ${OV_URL_HASH}
+	)
+    FetchContent_MakeAvailable(OpenVINO)
+	FetchContent_GetProperties(OpenVINO)
 
-		if (openvino_POPULATED)
-			set(OpenVINO_DIR "${openvino_SOURCE_DIR}/runtime/cmake"  CACHE STRING "Path to OpenVINO config files")
-			set(OpenVINO_ROOT ${openvino_SOURCE_DIR} CACHE STRING "Path to OpenVINO root directory")
-		endif()
+	if (openvino_POPULATED)
+		set(OpenVINO_DIR "${openvino_SOURCE_DIR}/runtime/cmake"  CACHE STRING "Path to OpenVINO config files")
+		set(OpenVINO_ROOT ${openvino_SOURCE_DIR} CACHE STRING "Path to OpenVINO root directory")
 	endif()
+else()
+	message(WARNING "Please set a valid path to OpenVINO_DIR.")
 endif()
