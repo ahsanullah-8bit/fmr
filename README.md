@@ -160,24 +160,14 @@ Util classes
 > fmr always prioritizes your configuration over any metadata embedded in the model. For instance, if you explicitly set a task type, that setting takes precedence over the model’s own metadata. 
 > This gives you full control and full responsibility.
 
-#### model_config
-
-```c++
-// fmr/config/predictorconfig.hpp
-
-struct model_config {   // considered for deprecation
-    std::optional<std::string> path; // path to your model.
-};
-```
-
 #### predictor_config
 
-Just has a single property / option
+Just has a single property `model_path`, where you obviously assign the path to your model.
 ```c++
 // fmr/config/predictorconfig.hpp
 
 struct predictor_config {
-    std::optional<model_config> model;
+    std::optional<std::string> model_path;
 };
 ```
 
