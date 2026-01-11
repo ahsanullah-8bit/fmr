@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 cmake_policy(SET CMP0169 OLD)
 cmake_policy(SET CMP0135 NEW)
 
@@ -17,15 +17,26 @@ find_package(OpenCV 4.10.0 CONFIG REQUIRED)
 find_package(spdlog 1.15.3 CONFIG REQUIRED)
 find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
 
-add_library(libfmr INTERFACE)
-add_library(fmr::libfmr ALIAS libfmr)
+add_library(fmr_core INTERFACE)
 
-target_include_directories(libfmr INTERFACE
+target_include_directories(fmr_core INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+target_sources(fmr_core INTERFACE
+   FILE_SET HEADERS
+   BASE_DIRS include
+   FILES
+      include/fmr/accelerators/accelerator.hpp
+      include/fmr/config/predictorconfig.hpp
+      include/fmr/config/yoloconfig.hpp
+      include/fmr/core/framespersecond.hpp
+      include/fmr/core/image.hpp
+      include/fmr/core/types.hpp
+      include/fmr/yolo/yolo.hpp
+)
 
-target_link_libraries(libfmr INTERFACE
+target_link_libraries(fmr_core INTERFACE
    ${OpenCV_LIBS}
    spdlog::spdlog_header_only
    yaml-cpp::yaml-cpp
@@ -36,60 +47,69 @@ set(FETCHCONTENT_QUIET OFF)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 set(FETCHCONTENT_GIT_PROGRESS ON)
 
+# Define the whole library
+add_library(fmr_libfmr INTERFACE)
+target_link_libraries(fmr_libfmr INTERFACE fmr_core)
+set(_fmr_targets fmr_core)
+
+# Introduce the conditional targets
 if (FMR_WITH_ORT)
    # Download a pre-build onnxruntime
    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
    find_package(onnxruntime CONFIG REQUIRED)
 
-   add_library(fmr_onnx INTERFACE)
-   add_library(fmr::onnx ALIAS fmr_onnx)
+   add_library(fmr_ort INTERFACE)
+   list(APPEND _fmr_targets fmr_ort)
 
-   target_link_libraries(fmr_onnx INTERFACE onnxruntime::onnxruntime)
-   target_link_libraries(libfmr INTERFACE fmr_onnx)
+   target_link_libraries(fmr_ort INTERFACE fmr_core onnxruntime::onnxruntime)
+   target_compile_definitions(fmr_ort
+       INTERFACE FMR_HAS_ORT=1
+   )
+   target_sources(fmr_ort INTERFACE
+      FILE_SET HEADERS
+      BASE_DIRS include
+      FILES
+         include/fmr/accelerators/onnxruntime.hpp
+         include/fmr/wrappers/customortallocator.hpp
+   )
+
+   # Add to the common target
+   target_link_libraries(fmr_libfmr INTERFACE fmr_ort)
 endif()
 
-set(FMR_IS_MAIN_PROJECT OFF)
-if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
-   set(FMR_IS_MAIN_PROJECT ON)
-endif()
 
-if (FMR_IS_MAIN_PROJECT)
-   include(GNUInstallDirs)
-   include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
-   install(TARGETS libfmr fmr_onnx
-       EXPORT fmrTargets
-       INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-   )
+install(TARGETS ${_fmr_targets}
+    EXPORT fmrTargets
+    FILE_SET HEADERS
+    # INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
 
-   # For find_package
-   install(EXPORT fmrTargets
-       FILE fmrTargets.cmake
-       NAMESPACE fmr::
-       DESTINATION "${CMAKE_INSTALL_DATADIR}/fmr"
-   )
+# For find_package
+install(EXPORT fmrTargets
+    FILE fmrTargets.cmake
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/fmr"
+)
 
-   install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/fmrConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
+)
 
-   configure_package_config_file(
-       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/fmrConfig.cmake.in
-       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
-       INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
-   )
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
 
-   write_basic_package_version_file(
-       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
-       VERSION ${PROJECT_VERSION}
-       COMPATIBILITY SameMajorVersion
-   )
-
-   install(FILES
-       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
-       ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
-       DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
-   )
-
-endif()
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/fmrConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/fmrConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/fmr
+)
 
 if (FMR_BUILD_EXAMPLES)
    add_subdirectory(examples)
