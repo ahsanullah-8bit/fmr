@@ -11,11 +11,11 @@ function(fmr_init_dependencies)
 	set(FETCHCONTENT_GIT_PROGRESS ON)
 
 	include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
-	# include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/openvino.cmake)
+	include(${CMAKE_SOURCE_DIR}/cmake/3rdParty/openvino.cmake)
 
 endfunction() # fmr_init_dependencies
 
-function(fmr_copy_prebuild_files dst)
+function(fmr_copy_prebuild_files target dst)
 	# Copy the prebuild files over to the binary dir
 	if (FMR_PREBUILD_FILES AND NOT FMR_PREBUILD_FILES STREQUAL "")
 		message(STATUS "--- Listing prebuild files (is being copied): ---")
@@ -24,7 +24,7 @@ function(fmr_copy_prebuild_files dst)
 		endforeach()
 		message(STATUS "--- End of prebuild files list ---")
 
-		add_custom_command(TARGET libfmr PRE_BUILD
+		add_custom_command(TARGET ${target} PRE_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different
 			${FMR_PREBUILD_FILES}
 			${dst}
@@ -34,22 +34,24 @@ function(fmr_copy_prebuild_files dst)
     endif()
 endfunction() # fmr_copy_prebuild_files
 
-function(fmr_copy_postbuild_files dst)
+function(fmr_copy_postbuild_files target dst)
 	# Copy the postbuild files over to the binary dir
 	if (FMR_POSTBUILD_RUNTIME_FILES AND NOT FMR_POSTBUILD_RUNTIME_FILES STREQUAL "")
 		message(STATUS "--- Listing runtime files (will be copied): ---")
-		foreach(file_path IN LISTS APSS_POSTBUILD_RUNTIME_FILES)
+		foreach(file_path IN LISTS FMR_POSTBUILD_RUNTIME_FILES)
 			message(STATUS "  - ${file_path}")
 		endforeach()
 		message(STATUS "--- End of runtime files list ---")
 
-		add_custom_command(TARGET libfmr POST_BUILD
+		add_custom_command(TARGET ${target} POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different
 			    ${FMR_POSTBUILD_RUNTIME_FILES}
 				${dst}
 
 			VERBATIM
 		)
+    else()
+		message(WARNING "FMR_POSTBUILD_RUNTIME_FILES is empty!")
     endif()
 endfunction() # fmr_copy_postbuild_files
 
