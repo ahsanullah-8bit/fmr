@@ -1,6 +1,5 @@
 #include <string>
 #include <filesystem>
-#include <unordered_set>
 
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
@@ -8,15 +7,11 @@
 #include <opencv2/highgui.hpp>
 
 #include <fmr/core/framespersecond.hpp>
-#include <fmr/accelarators/accelerator.hpp>
-#include <fmr/accelarators/onnxruntime.hpp>
+#include <fmr/accelerators/accelerator.hpp>
+#include <fmr/accelerators/onnxruntime.hpp>
 #include <fmr/yolo/yolo.hpp>
 #include <fmr/config/yoloconfig.hpp>
-
-bool is_image(const std::string& filename);
-bool is_video(const std::string& filename);
-std::unordered_map<int, std::string> read_names(const std::string &filepath);
-void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img);
+#include <common/helpers.hpp>
 
 int main(int argc, char* argv[])
 {
@@ -70,7 +65,7 @@ int main(int argc, char* argv[])
 
     if (parser.present("--labels")) {
         if(std::filesystem::exists(parser.get<std::string>("--labels"))) {
-            yolo_config->names = read_names(parser.get<std::string>("--labels"));
+            yolo_config->names = fmr::read_names(parser.get<std::string>("--labels"));
         } else {
             logger->warn("Selected labels path doesn't exist. Ignoring!");
         }
@@ -82,11 +77,11 @@ int main(int argc, char* argv[])
     fmr::yolo yolo(ort, yolo_config);
 
     std::string win_name = "YOLO11-1st", win2_name = "YOLO11-2nd";
-    if (is_image(source1)) {
+    if (fmr::is_image(source1)) {
         // Is an image
         std::vector<cv::Mat> batch = { cv::imread(source1) };
 
-        bool is_valid_img2 = !source2.empty() && is_image(source2);
+        bool is_valid_img2 = !source2.empty() && fmr::is_image(source2);
         if (is_valid_img2)
             batch.emplace_back(cv::imread(source2));
 
@@ -99,7 +94,7 @@ int main(int argc, char* argv[])
             cv::imshow(win2_name, batch.at(1));
 
         cv::waitKey();
-    } else if (is_video(source1)) {
+    } else if (fmr::is_video(source1)) {
         // Is a video
         fmr::frames_per_second fps;
         // fps.start();
@@ -111,7 +106,7 @@ int main(int argc, char* argv[])
         }
 
         std::unique_ptr<cv::VideoCapture> cap2;
-        if (!source2.empty() && is_video(source2)) {
+        if (!source2.empty() && fmr::is_video(source2)) {
             cap2 = std::make_unique<cv::VideoCapture>(source2);
             if (!cap2->isOpened()) {
                 logger->error("Could not open the 2nd video file.");
@@ -153,7 +148,7 @@ int main(int argc, char* argv[])
 
             if (cap) {
                 std::string fps_text = fmt::format("FPS: {}", std::to_string((int)fps.fps()));
-                draw_metrics({ fps_text }, batch.at(0));
+                fmr::draw_metrics({ fps_text }, batch.at(0));
                 cv::imshow(win_name, batch.at(0));
             }
 
@@ -183,84 +178,4 @@ int main(int argc, char* argv[])
     }
 
     return 0;
-}
-
-bool is_image(const std::string& filename)
-{
-    static const std::unordered_set<std::string> image_exts = {
-        ".bmp", ".dib", ".jpg", ".jpeg", ".jpe", ".jp2", ".png",
-        ".tif", ".tiff", ".pbm", ".pgm", ".ppm", ".sr", ".ras", ".webp"
-    };
-
-    // Extract lowercase extension from filename
-    size_t dot_pos = filename.find_last_of('.');
-    std::string ext = filename.substr(dot_pos);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    if (image_exts.count(ext))
-        return true;
-
-    return false;
-}
-
-bool is_video(const std::string& filename)
-{
-    static const std::unordered_set<std::string> video_exts = {
-        ".avi", ".mp4", ".mov", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv"
-    };
-
-    // Extract lowercase extension from filename
-    size_t dot_pos = filename.find_last_of('.');
-    std::string ext = filename.substr(dot_pos);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    if (video_exts.count(ext))
-        return true;
-
-    return false;
-}
-
-std::unordered_map<int, std::string> read_names(const std::string &filepath)
-{
-    std::ifstream in_stream;
-    in_stream.open(filepath, std::ios_base::in);
-
-    if (!in_stream.is_open())
-        return {};
-
-    std::unordered_map<int, std::string> result;
-    std::string name;
-    for (size_t i = 0; !in_stream.eof(); ++i) {
-        std::getline(in_stream, name);
-        result[i] = name;
-    }
-
-    return result;
-}
-
-void draw_metrics(const std::vector<std::string> &metrics, cv::Mat &img)
-{
-    int baseline = 0;
-    const int font_face = cv::FONT_HERSHEY_SIMPLEX;
-    const double font_scale = std::min(img.cols, img.rows) * 0.0008;
-    const int font_thickness = std::max(1, (int)(std::min(img.cols, img.rows) * 0.002));
-
-    int y = 20; // start some pixels down from top
-    for (const auto &metric : metrics) {
-        cv::Size text_size = cv::getTextSize(metric, font_face, font_scale, font_thickness, &baseline);
-
-        // Background box (a little padding)
-        cv::rectangle(img,
-                      cv::Point(0, y - text_size.height - baseline),
-                      cv::Point(text_size.width + 5, y + baseline),
-                      cv::Scalar(255, 255, 255), cv::FILLED);
-
-        // Put the text
-        cv::putText(img, metric, cv::Point(2, y),
-                    font_face, font_scale,
-                    cv::Scalar(0, 0, 0), font_thickness, cv::LINE_AA);
-
-        // Pove y down for next line
-        y += text_size.height + baseline + 5; // add spacing
-    }
 }

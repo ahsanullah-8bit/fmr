@@ -8,7 +8,7 @@
 
 #include <fmr/core/types.hpp>
 #include <fmr/core/image.hpp>
-#include <fmr/accelarators/accelerator.hpp>
+#include <fmr/accelerators/accelerator.hpp>
 #include <fmr/config/yoloconfig.hpp>
 
 namespace fmr {
@@ -76,13 +76,13 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
             m_config->batch = std::stoi(metadata.at("batch"));
         } else {
             // Fallback to 1 (dynamic) or input shape (fixed)
-            m_config->batch = has_dyn_batch() ? 1 : inferSession->input_shapes().at(0).at(0);
+            m_config->batch = has_dyn_batch() ? 1 : static_cast<int>(inferSession->input_shapes().at(0).at(0));
         }
     } else {
         // Fixed shape? compare with input shape. if mismatch, enfore
         if (!has_dyn_batch()
-            && inferSession->input_shapes().at(0).at(0) != m_config->batch.value())
-            m_config->batch = inferSession->input_shapes().at(0).at(0);
+            && static_cast<int>(inferSession->input_shapes().at(0).at(0)) != m_config->batch.value())
+            m_config->batch = static_cast<int>(inferSession->input_shapes().at(0).at(0));
     }
 
     if (!m_config->imgsz && metadata.find("imgsz") != metadata.end()) {
