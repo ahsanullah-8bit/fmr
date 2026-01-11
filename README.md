@@ -137,7 +137,6 @@ These are some of the models tested with fmr
 ### Classes and Structs
 
 Config classes
-- [model_config](#model_config)
 - [predictor_config](#predictor_config)
 - [yolo_config](#yolo_config)
 
