@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 cmake_policy(SET CMP0169 OLD)
+cmake_policy(SET CMP0135 NEW)
 
 project(fmr VERSION 0.1 LANGUAGES CXX)
 
@@ -8,17 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(FMR_BUILD_EXAMPLES "Build examples" OFF)
 option(FMR_BUILD_TESTS "Build tests" OFF)
-option(FMR_ORT "ONNXRuntime support" ON)
+option(FMR_WITH_ORT "Enable ONNXRuntime support" ON)
 
-include (FetchContent)
-set(FETCHCONTENT_QUIET OFF)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
-set(FETCHCONTENT_GIT_PROGRESS ON)
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
 include(cmake/helpers.cmake)
 
-find_package(onnxruntime CONFIG REQUIRED)
 find_package(OpenCV 4.10.0 CONFIG REQUIRED)
 find_package(spdlog 1.15.3 CONFIG REQUIRED)
 find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
@@ -33,21 +27,37 @@ target_include_directories(libfmr INTERFACE
 
 target_link_libraries(libfmr INTERFACE
    ${OpenCV_LIBS}
-   onnxruntime::onnxruntime
    spdlog::spdlog_header_only
    yaml-cpp::yaml-cpp
 )
 
-set(IS_MAIN_PROJECT OFF)
-if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
-   set(IS_MAIN_PROJECT ON)
+include (FetchContent)
+set(FETCHCONTENT_QUIET OFF)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+set(FETCHCONTENT_GIT_PROGRESS ON)
+
+if (FMR_WITH_ORT)
+   # Download a pre-build onnxruntime
+   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/3rdParty/onnxruntime.cmake)
+   find_package(onnxruntime CONFIG REQUIRED)
+
+   add_library(fmr_onnx INTERFACE)
+   add_library(fmr::onnx ALIAS fmr_onnx)
+
+   target_link_libraries(fmr_onnx INTERFACE onnxruntime::onnxruntime)
+   target_link_libraries(libfmr INTERFACE fmr_onnx)
 endif()
 
-if (IS_MAIN_PROJECT)
+set(FMR_IS_MAIN_PROJECT OFF)
+if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+   set(FMR_IS_MAIN_PROJECT ON)
+endif()
+
+if (FMR_IS_MAIN_PROJECT)
    include(GNUInstallDirs)
    include(CMakePackageConfigHelpers)
 
-   install(TARGETS libfmr
+   install(TARGETS libfmr fmr_onnx
        EXPORT fmrTargets
        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
    )
