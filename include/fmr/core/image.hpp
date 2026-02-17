@@ -112,8 +112,8 @@ inline void normalize(cv::Mat &image, float scale = 1.0f / 255.0f)
 }
 
 inline void normalize_imagenet(cv::Mat &image,
-                               const std::vector<float> &mean = { 0.485, 0.456, 0.406 },
-                               const std::vector<float> &std = { 0.229, 0.224, 0.225 },
+                               const std::array<float, 3> &mean = { 0.485, 0.456, 0.406 },
+                               const std::array<float, 3> &std = { 0.229, 0.224, 0.225 },
                                float scale = 1.0f / 255.0f)
 {
     if (image.empty() || image.channels() != 3)
