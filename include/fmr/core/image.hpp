@@ -4,7 +4,9 @@
 #include <numeric>
 #include <type_traits>
 #include <random>
+#include <vector>
 
+#include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <fmt/format.h>
@@ -119,12 +121,13 @@ inline void normalize_imagenet(cv::Mat &image,
     if (image.empty() || image.channels() != 3)
         return;
 
+    image.convertTo(image, CV_32FC3, scale);
+    
     std::vector<cv::Mat> channels(3);
     cv::split(image, channels);
 
-    channels[0] = (channels[0] - mean.at(0)) / std.at(0);
-    channels[1] = (channels[1] - mean.at(1)) / std.at(1);
-    channels[2] = (channels[2] - mean.at(2)) / std.at(2);
+    for (int i = 0; i < 3; ++i)
+        channels[i] = (channels[i] - mean.at(i)) / std.at(i);
 
     cv::merge(channels.data(), 3, image);
 }
@@ -417,6 +420,17 @@ inline std::vector<cv::Scalar> generate_colors(size_t size, std::mt19937 &rng)
     return colors;
 }
 
+inline cv::Mat visualize_prob_heatmap(const cv::Mat& prob_map) {
+    cv::Mat u8_map;
+    prob_map.convertTo(u8_map, CV_8UC1, 255.0);
+
+    // Apply a colormap (COLORMAP_JET or COLORMAP_VIRIDIS are popular)
+    cv::Mat heatmap;
+    cv::applyColorMap(u8_map, heatmap, cv::COLORMAP_JET);
+    
+    return heatmap;
+}
+
 inline void draw_bboxes(cv::Mat &image,
                         const std::vector<prediction> &predictions,
                         const std::unordered_map<int, std::string> &labels,
@@ -649,6 +663,119 @@ inline void draw_classifications(cv::Mat &image,
             break;
         }
     }
+}
+
+inline void draw_ocr(cv::Mat &image,
+                    const paddle::ocr::results_t &results,
+                    const std::vector<cv::Scalar> &colors,
+                    float maskAlpha = 0.3f)
+{
+    const int font_face = cv::FONT_HERSHEY_SIMPLEX;
+    const double font_scale = std::min(image.rows, image.cols) * 0.0008;
+    const int thickness = std::max(1, static_cast<int>(std::min(image.rows, image.cols) * 0.002));
+
+    for (size_t i = 0; i < results.size(); ++i) {
+        const auto &res = results.at(i);
+        const cv::Scalar& color = colors.empty() ? cv::Scalar(0, 0, 255) : colors[i % colors.size()];
+
+        std::string label = fmt::format("{:.2f}% - {}", res.det.score * 100.0f, res.rec.text);
+
+        // Draw the quad (tilted box)
+        std::vector<cv::Point> pts;
+        pts.reserve(4);
+        for (int k = 0; k < 4; ++k) {
+            const auto &p = res.det.points.at(k);
+            pts.emplace_back(static_cast<int>(std::round(p.x)), static_cast<int>(std::round(p.y)));
+        }
+
+        const cv::Point* pts_ptr = pts.data();
+        int npts = static_cast<int>(pts.size());
+        cv::polylines(image, &pts_ptr, &npts, 1, true, color, 2, cv::LINE_AA);
+
+        // Text background and label placement using quad bounding box
+        int baseline = 0;
+        const cv::Size text_size = cv::getTextSize(label, font_face, font_scale, thickness, &baseline);
+        baseline += thickness;
+
+        const cv::Rect brect = cv::boundingRect(pts);
+        const int x = brect.x;
+        const int y = std::max(brect.y, text_size.height + 5);
+
+        const cv::Point label_tl(x, y - text_size.height - 5);
+        const cv::Point label_br(x + text_size.width + 5, y + baseline - 5);
+
+        cv::rectangle(image, label_tl, label_br, color, cv::FILLED, cv::LINE_AA);
+        cv::putText(image, label, cv::Point(label_tl.x + 2, y - 2),
+                    font_face, font_scale, cv::Scalar(255, 255, 255),
+                    thickness, cv::LINE_AA);        
+    }
+}
+
+inline void perspective_crop(const cv::Mat &img, cv::Mat &res, const std::array<cv::Point2f, 4> &srcPoints, const std::array<cv::Point2f, 4> &dstPoints) {
+    if (img.empty() || srcPoints.empty() || dstPoints.empty())
+        return;
+
+    int h = dstPoints.at(3).y - dstPoints.at(0).y;
+    int w = dstPoints.at(1).x - dstPoints.at(0).x;
+
+    cv::Mat tr_mat = cv::getPerspectiveTransform(srcPoints, dstPoints);
+    cv::warpPerspective(img, res, tr_mat,  cv::Size(w, h));
+}
+
+inline void perspective_crop(const cv::Mat &img, cv::Mat &res, const std::array<cv::Point2f, 4> &srcPoints, float sizeGain) {
+    if (img.empty() || srcPoints.empty())
+        return;
+
+    // Find heights/widths on each side
+    float h_left  = cv::norm(srcPoints.at(3) - srcPoints.at(0));
+    float h_right = cv::norm(srcPoints.at(2) - srcPoints.at(1));
+    float w_top   = cv::norm(srcPoints.at(1) - srcPoints.at(0));
+    float w_bot   = cv::norm(srcPoints.at(2) - srcPoints.at(3));
+
+    // Expected height/width
+    float exp_h = std::max(h_left, h_right) / sizeGain;
+    float exp_w = std::max(w_top, w_bot) / sizeGain;
+
+    const std::array<cv::Point2f, 4> dst_points = {
+        cv::Point2f { 0.0f,      0.0f },
+        cv::Point2f { exp_w,     0.0f },
+        cv::Point2f { exp_w,     exp_h },
+        cv::Point2f { 0.0f,      exp_h }
+    };
+    perspective_crop(img, res, srcPoints, dst_points);
+}
+
+// Point3f
+inline void perspective_crop(const cv::Mat &img, cv::Mat &res, const std::array<keypoint, 4> &srcPoints, const std::array<cv::Point2f, 4> &dstPoints)
+{
+    std::array<cv::Point2f, 4> points;
+    for (int i = 0; i < srcPoints.size(); ++i) {
+        points.at(i) = srcPoints.at(i).point;
+    }
+
+    perspective_crop(img, res, points, dstPoints);
+}
+
+inline void perspective_crop(const cv::Mat &img, cv::Mat &res, const std::vector<cv::Point2f> &srcPoints, const std::vector<cv::Point2f> &dstPoints)
+{
+    std::array<cv::Point2f, 4> src_points;
+    std::array<cv::Point2f, 4> dst_points;
+    for (int i = 0; i < srcPoints.size(); ++i) {
+        src_points.at(i) = srcPoints.at(i);
+        dst_points.at(i) = dstPoints.at(i);
+    }
+
+    perspective_crop(img, res, src_points, dst_points);
+}
+
+inline void perspective_crop(const cv::Mat &img, cv::Mat &res, const std::vector<cv::Point2f> &srcPoints, const float sizeGain = 0.2f)
+{
+    std::array<cv::Point2f, 4> src_points;
+    for (int i = 0; i < srcPoints.size(); ++i) {
+        src_points.at(i) = srcPoints.at(i);
+    }
+
+    perspective_crop(img, res, src_points, sizeGain);
 }
 
 }
