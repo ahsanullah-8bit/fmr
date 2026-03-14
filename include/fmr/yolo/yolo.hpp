@@ -79,7 +79,7 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
             m_config->batch = has_dyn_batch() ? 1 : static_cast<int>(inferSession->input_shapes().at(0).at(0));
         }
     } else {
-        // Fixed shape? compare with input shape. if mismatch, enfore
+        // Fixed shape? compare with input shape. if mismatch, enforce
         if (!has_dyn_batch()
             && static_cast<int>(inferSession->input_shapes().at(0).at(0)) != m_config->batch.value())
             m_config->batch = static_cast<int>(inferSession->input_shapes().at(0).at(0));
@@ -197,7 +197,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
 
             if (max_w == -1) {
                 if (m_config->imgsz) {
-                    max_w = m_config->imgsz->at(0);
+                    max_w = m_config->imgsz->at(1);
                 } else {
                     for (size_t s = 0; s < sel_size; ++s)
                         max_w = std::max(max_w, batch[b + s].cols);
