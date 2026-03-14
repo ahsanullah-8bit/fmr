@@ -87,3 +87,10 @@ CMakeLists.txt.user*
 .venv
 assets/models/*
 !assets/nodels/.gitkeep
+
+# VS Code specific
+.vscode
+
+# Clang specific
+.cache
+compile_commands.json
