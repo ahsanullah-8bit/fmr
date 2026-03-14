@@ -164,7 +164,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
     }
 
     const int batch_size = m_config->batch.value();
-    std::vector<int64_t> input_shape = input_shapes.at(0); // BCHW
+    const std::vector<int64_t> input_shape = input_shapes.at(0); // BCHW
     std::vector<predictions_t> predictions_list;
     predictions_list.reserve(batch.size());
 
@@ -175,8 +175,9 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                                    : std::min(batch.size(), b + batch_size);    // else, the specific size
         const size_t sel_size = sel_end - b;
 
-        int max_h = input_shape[2];
-        int max_w = input_shape[3];
+        auto custom_input_shape = input_shape;
+        int max_h = custom_input_shape.at(2);
+        int max_w = custom_input_shape.at(3);
 
         if (has_dyn_shape()) {
             int model_stride = m_config->stride.value_or(32);
@@ -192,7 +193,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                         max_h = ((max_h / model_stride) + 1) * model_stride;
                 }
 
-                input_shape[2] = max_h;
+                custom_input_shape[2] = max_h;
             }
 
             if (max_w == -1) {
@@ -206,22 +207,22 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                         max_w = ((max_w / model_stride) + 1) * model_stride;
                 }
 
-                input_shape[3] = max_w;
+                custom_input_shape[3] = max_w;
             }
-
-            input_shape[0] = sel_size;
         }
 
-        const cv::Size new_shape(max_w, max_h);
+        custom_input_shape[0] = sel_size;
+
+        const cv::Size resized_size(custom_input_shape.at(3), custom_input_shape.at(2));
         std::vector<cv::Mat> sel_batch;
         for (size_t s = 0; s < sel_size; ++s) {
             const cv::Mat img = batch[b + s];
             cv::Mat resized_img;
 
             if (task == yolo_config::Classify) {
-                cv::resize(img, resized_img, new_shape);
+                cv::resize(img, resized_img, resized_size);
             } else {
-                letter_box(img, resized_img, new_shape);
+                letter_box(img, resized_img, resized_size);
             }
 
             cv::cvtColor(resized_img, resized_img, cv::COLOR_BGR2RGB);
@@ -230,15 +231,14 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
             sel_batch.emplace_back(resized_img);
         }
 
-        std::vector<std::vector<float>> inputs(1,  std::vector<float>(vec_product(input_shape), 0.0f));
+        std::vector<std::vector<float>> inputs(1,  std::vector<float>(vec_product(custom_input_shape), 0.0f));
         permute(sel_batch, inputs[0]);
 
-        m_infer_session->predict_raw(inputs, { input_shape });
+        m_infer_session->predict_raw(inputs, { custom_input_shape });
 
-        cv::Size resized_size(input_shape[3], input_shape[2]);
         std::vector<predictions_t> predictions;
 
-        switch (m_config->task.value_or(yolo_config::Uknown)) {
+        switch (m_config->task.value()) {
         case yolo_config::Detect:
             predictions = postprocess_detections(batch, b, sel_size, resized_size);
             break;
