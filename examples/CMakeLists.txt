@@ -15,6 +15,7 @@ function(fmr_add_example target)
 endfunction()
 
 fmr_add_example(yolo11_ort yolo/yolo11_ort.cpp)
+fmr_add_example(paddleocr_ort paddle/paddleocr_ort.cpp)
 
 # Copy necessary assets
 # WARNING: These checks are necessary, the GLOB_RECURSE will search the WHOLE SYSTEM, if the <globbing-expressions> is given as "/*.dll".

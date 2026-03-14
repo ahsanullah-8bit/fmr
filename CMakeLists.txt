@@ -16,6 +16,7 @@ include(cmake/helpers.cmake)
 find_package(OpenCV 4.10.0 CONFIG REQUIRED)
 find_package(spdlog 1.15.3 CONFIG REQUIRED)
 find_package(yaml-cpp 0.8.0 CONFIG REQUIRED)
+find_package(Clipper2 CONFIG REQUIRED)
 
 add_library(fmr_core INTERFACE)
 
@@ -28,11 +29,19 @@ target_sources(fmr_core INTERFACE
    BASE_DIRS include
    FILES
       include/fmr/accelerators/accelerator.hpp
+      include/fmr/accelerators/onnxruntime.hpp
+      include/fmr/config/paddleocrconfig.hpp
       include/fmr/config/predictorconfig.hpp
       include/fmr/config/yoloconfig.hpp
+      include/fmr/core/dbpostprocess.hpp
       include/fmr/core/framespersecond.hpp
       include/fmr/core/image.hpp
       include/fmr/core/types.hpp
+      include/fmr/paddle/ocr/classifier.hpp
+      include/fmr/paddle/ocr/detector.hpp
+      include/fmr/paddle/ocr/pipeline.hpp
+      include/fmr/paddle/ocr/recognizer.hpp
+      include/fmr/wrappers/customortallocator.hpp
       include/fmr/yolo/yolo.hpp
 )
 
@@ -40,6 +49,7 @@ target_link_libraries(fmr_core INTERFACE
    ${OpenCV_LIBS}
    spdlog::spdlog_header_only
    yaml-cpp::yaml-cpp
+   Clipper2::Clipper2
 )
 
 include (FetchContent)
