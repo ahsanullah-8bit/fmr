@@ -9,7 +9,15 @@
       "name": "opencv4",
       "default-features": false,
       "features": [ "fs", "ffmpeg", "eigen", "highgui", "jpeg", "png", "win32ui"],
-      "version>=": "4.10.0"
+      "version>=": "4.10.0",
+      "platform": "windows"
+    },
+    {
+      "name": "opencv4",
+      "default-features": false,
+      "features": [ "fs", "ffmpeg", "eigen", "highgui", "jpeg", "png", "gtk"],
+      "version>=": "4.10.0",
+      "platform": "linux"
     },
     {
       "name": "spdlog",
@@ -26,6 +34,10 @@
     {
       "name": "gtest",
       "version>=": "1.16.0"
+    },
+    {
+      "name": "clipper2",
+      "version>=": "1.5.3"
     }
   ]
 }
