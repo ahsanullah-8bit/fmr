@@ -160,7 +160,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
     // TODO: Support for models with more than 1 input shapes
     if(input_shapes.size() != 1) {
         m_logger->warn("Only one input tensor was expected, got {}. Skipping prediction!", input_shapes.size());
-        return {};
+        return std::vector<predictions_t>(batch.size(), {});
     }
 
     const int batch_size = m_config->batch.value();
