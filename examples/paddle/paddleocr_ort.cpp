@@ -1,5 +1,5 @@
-#include "fmr/core/types.hpp"
 #include <memory>
+#include <vector>
 
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
@@ -15,9 +15,10 @@
 #include <fmr/accelerators/accelerator.hpp>
 #include <fmr/accelerators/onnxruntime.hpp>
 #include <fmr/paddle/ocr/pipeline.hpp>
+#include <fmr/core/types.hpp>
+#include <fmr/core/image.hpp>
 #include <fmr/core/framespersecond.hpp>
 #include <common/helpers.hpp>
-#include <vector>
 
 void print_ocr(const std::vector<fmr::paddle::ocr::results_t> results, std::shared_ptr<spdlog::logger> logger);
 
@@ -44,7 +45,7 @@ int main(int argc, char* argv[]) {
     parser.add_argument("--source")
         .help("Path to the video/image file")
         .required()
-        .default_value(std::string("assets/images/en_2.png"));
+        .default_value(std::string("assets/images/lp2.jpg"));
 
     parser.add_argument("--source2")
         .help("Path to the 2nd video/image file. For batched inference")
@@ -113,6 +114,10 @@ int main(int argc, char* argv[]) {
         bool is_valid_img2 = !source2.empty() && fmr::is_image(source2);
         if (is_valid_img2)
             batch.emplace_back(cv::imread(source2));
+
+        // The given image must be in the model's recognition range, meaning it shouldn't
+        // be too big either. This is a just a lazy way to acheive that at the moment.
+        fmr::letter_box(batch.at(0), batch.at(0), cv::Size(640, 640));
 
         const auto preds = paddleocr.predict(batch);
         paddleocr.draw(batch, preds);
