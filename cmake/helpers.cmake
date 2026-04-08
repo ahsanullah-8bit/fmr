@@ -34,6 +34,22 @@ function(fmr_copy_prebuild_files target dst)
     endif()
 endfunction() # fmr_copy_prebuild_files
 
+function(fmr_create_prebuild_copy_target target_name dst)
+    if (FMR_PREBUILD_FILES)
+        message(STATUS "Defining prebuild copy target: ${target_name}")
+        
+        add_custom_target(${target_name}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${dst}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${FMR_PREBUILD_FILES}
+                "${dst}"
+            SOURCES ${FMR_PREBUILD_FILES}
+            COMMENT "Copying prebuild files to ${dst}"
+            VERBATIM
+        )
+    endif()
+endfunction()
+
 function(fmr_copy_postbuild_files target dst)
 	# Copy the postbuild files over to the binary dir
 	if (FMR_POSTBUILD_RUNTIME_FILES AND NOT FMR_POSTBUILD_RUNTIME_FILES STREQUAL "")
@@ -55,6 +71,24 @@ function(fmr_copy_postbuild_files target dst)
     endif()
 endfunction() # fmr_copy_postbuild_files
 
+function(fmr_create_postbuild_copy_target target_name dst)
+    if (FMR_POSTBUILD_RUNTIME_FILES)
+        message(STATUS "Defining postbuild copy target: ${target_name}")
+        
+        add_custom_target(${target_name}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${dst}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${FMR_POSTBUILD_RUNTIME_FILES}
+                "${dst}"
+            SOURCES ${FMR_POSTBUILD_RUNTIME_FILES}
+            COMMENT "Copying runtime files to ${dst}"
+            VERBATIM
+        )
+    else()
+        message(WARNING "FMR_POSTBUILD_RUNTIME_FILES is empty!")
+    endif()
+endfunction()
+
 function(fmr_copy_assets target src dst)
 	message(STATUS "Copying ${src} to ${dst}/assets")
 	# Model folders
@@ -66,3 +100,17 @@ function(fmr_copy_assets target src dst)
 		COMMENT "Copying ${src} to ${dst}/assets"
 	)
 endfunction() # fmr_copy_assets
+
+function(fmr_copy_assets_standalone target_name src dst)
+    message(STATUS "Defining asset copy target: ${target_name}")
+
+    add_custom_target(${target_name}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${dst}/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+            "${src}"
+            "${dst}/assets"
+        DEPENDS "${src}"
+        COMMENT "Syncing assets from ${src} to ${dst}/assets"
+        VERBATIM
+    )
+endfunction()
