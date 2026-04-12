@@ -11,7 +11,7 @@ struct paddleocr_config {
         RGB, BGR
     };
 
-    enum norm_order {
+    enum normalization_order {
         hwc
     };
 
@@ -27,7 +27,7 @@ struct paddleocr_config {
     };
 
     std::optional<image_mode> img_mode;       // det
-    std::optional<norm_order> norm_order;     // det
+    std::optional<normalization_order> norm_order;     // det
     std::optional<std::array<float, 3>> mean; // det, cls, rec
     std::optional<std::array<float, 3>> std;  // det, cls, rec
     std::optional<float> scale;               // det, cls, rec
