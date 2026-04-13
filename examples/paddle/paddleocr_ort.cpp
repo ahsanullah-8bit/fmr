@@ -117,7 +117,10 @@ int main(int argc, char* argv[]) {
 
         // The given image must be in the model's recognition range, meaning it shouldn't
         // be too big either. This is a just a lazy way to acheive that at the moment.
-        fmr::letter_box(batch.at(0), batch.at(0), cv::Size(640, 640));
+        if (batch.at(0).total() > 409'600) // 640x640
+            fmr::letter_box(batch.at(0), batch.at(0), cv::Size(640, 640));
+        if (batch.size() > 1 && batch.at(1).total() > 409'600) // 640x640
+            fmr::letter_box(batch.at(1), batch.at(1), cv::Size(640, 640));
 
         const auto preds = paddleocr.predict(batch);
         paddleocr.draw(batch, preds);
