@@ -224,9 +224,8 @@ inline recs_t recognizer::predict(const std::vector<cv::Mat> &batch)
                 const int argmax_pos = std::distance(first, max_element_it);
 
                 if (argmax_pos > 0                      // skip blank
-                    && argmax_pos - 1 < labels.size() 
                     && argmax_pos != last_index) {      // collapse repeats
-                        text += labels.at(argmax_pos - 1);
+                        text += (argmax_pos - 1) < labels.size() ? labels.at(argmax_pos - 1) : ' ';
                         score += *max_element_it;
                         ++count;
                 }
