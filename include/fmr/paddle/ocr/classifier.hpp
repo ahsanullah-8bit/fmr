@@ -64,6 +64,11 @@ inline classifier::classifier(accelerator *inferSession, const paddleocr_config 
     }
 
     // TODO: Image input size
+
+    // Labels
+    if (!m_config.labels) {
+        m_config.labels = {"0_degree", "180_degree" };
+    }
 }
 
 inline classifier::~classifier()
@@ -157,7 +162,8 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
             const float *last = &output0_data[(s + 1) * shape0.at(1)];
             const float *max_element = std::max_element(first, last);
 
-            predictions_list[b + s].label = static_cast<int>(std::distance(first, max_element));
+            predictions_list[b + s].label_id = static_cast<int>(std::distance(first, max_element));
+            predictions_list[b + s].label = m_config.labels->at(predictions_list.at(b + s).label_id);
             predictions_list[b + s].score = *max_element;
         }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <vector>
 #include <optional>
 
@@ -31,6 +32,7 @@ struct paddleocr_config {
     std::optional<std::array<float, 3>> mean; // det, cls, rec
     std::optional<std::array<float, 3>> std;  // det, cls, rec
     std::optional<float> scale;               // det, cls, rec
+    std::optional<int> channels;
 
     std::optional<float> thresh;              // det
     std::optional<float> box_thresh;          // det
@@ -44,6 +46,7 @@ struct paddleocr_config {
     std::optional<int> batch;                 // det, cls, rec
     std::optional<int> stride;                // det, cls, rec
     std::optional<std::array<int, 2>> imgsz;  // det, cls, rec
+    std::optional<std::vector<std::string>> labels; // cls
     std::optional<std::vector<char>> character_dict;// rec
 };
 

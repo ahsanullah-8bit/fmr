@@ -39,7 +39,8 @@ namespace fmr {
         using dets_t = std::vector<det>;
         
         typedef struct {
-            int label;
+            int label_id;
+            std::string label;
             float score;
         } cls;
         using clss_t = std::vector<cls>;
