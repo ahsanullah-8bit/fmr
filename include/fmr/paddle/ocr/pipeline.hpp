@@ -74,7 +74,7 @@ inline std::vector<results_t> pipeline::predict(const std::vector<cv::Mat> &batc
         
         // rotate the imgs
         for (int i = 0; i < cropped_batch.size(); ++i) {
-            if (cls_results.at(i).label % 2 == 1 
+            if (cls_results.at(i).label_id % 2 == 1 
             && cls_results.at(i).score > 0.4f) {
                 cv::rotate(cropped_batch.at(i), cropped_batch.at(i), cv::ROTATE_180);
             }
