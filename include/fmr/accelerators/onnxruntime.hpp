@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <memory>
 
+#include <onnxruntime_c_api.h>
 #include <onnxruntime_cxx_api.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -21,9 +22,8 @@ namespace fmr {
             const predictor_config &config,
             std::shared_ptr<Ort::Env> env = nullptr,
             std::shared_ptr<Ort::SessionOptions> sessionOptions = nullptr,
-            std::shared_ptr<custom_ort_alloc> allocator = nullptr,
-            std::shared_ptr<Ort::MemoryInfo> memoryInfo = nullptr
-            );
+            OrtAllocator *allocator = nullptr
+        );
 
         void predict_raw(std::vector<std::vector<float>> &data,
                                  std::vector<std::vector<int64_t>> customInputShapes = {}) override;
@@ -34,15 +34,12 @@ namespace fmr {
 
         void print_metadata() const override;
         OrtAllocator* allocator() const;
-        std::shared_ptr<custom_ort_alloc> custom_allocator() const;
-        std::shared_ptr<Ort::MemoryInfo> memory_info() const;
 
     private:
         const predictor_config &m_config;
         std::shared_ptr<Ort::Env> m_env;
         Ort::Session m_session { nullptr };
-        std::shared_ptr<custom_ort_alloc> m_allocator;
-        std::shared_ptr<Ort::MemoryInfo> m_memory_info;
+        OrtAllocator *m_allocator;
         std::shared_ptr<Ort::RunOptions> m_run_options;
 
         // Vectors to hold allocated input and output node names
@@ -61,12 +58,10 @@ namespace fmr {
     inline onnxruntime::onnxruntime(const predictor_config &config,
                                     std::shared_ptr<Ort::Env> env,
                                     std::shared_ptr<Ort::SessionOptions> sessionOptions,
-                                    std::shared_ptr<custom_ort_alloc> allocator,
-                                    std::shared_ptr<Ort::MemoryInfo> memoryInfo)
+                                    OrtAllocator *allocator)
         : m_config(config)
         , m_env(env)
         , m_allocator(allocator)
-        , m_memory_info(memoryInfo)
         , m_logger(spdlog::default_logger()->clone("fmr.accelators.ort"))
     {
         m_logger->set_level(spdlog::level::debug);
@@ -76,9 +71,6 @@ namespace fmr {
 
         if (!m_env)
             m_env = std::make_shared<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "ONNX_Inference");
-
-        if (!m_memory_info)
-            m_memory_info = std::make_shared<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
         std::string model_path = config.model_path.value_or("");
         if (!std::filesystem::exists(model_path)
@@ -107,14 +99,14 @@ namespace fmr {
             m_session = Ort::Session(*m_env, model_path_.c_str(), *sessionOptions);
 
             if (!m_allocator)
-                m_allocator = std::make_shared<custom_ort_alloc>(Ort::Allocator(m_session, *m_memory_info));
+                m_allocator = Ort::AllocatorWithDefaultOptions();
 
             // input nodes.
             int input_nodes_ = m_session.GetInputCount();
             std::vector<const char *> input_names_;
             std::vector<std::vector<int64_t>> input_shapes_;
             for (int i = 0; i < input_nodes_; ++i) {
-                Ort::AllocatedStringPtr name = m_session.GetInputNameAllocated(i, m_allocator->get());
+                Ort::AllocatedStringPtr name = m_session.GetInputNameAllocated(i, m_allocator);
                 m_input_names_alloc.emplace_back(std::move(name));
                 input_names_.emplace_back(m_input_names_alloc.back().get());
 
@@ -131,7 +123,7 @@ namespace fmr {
             std::vector<const char *> output_names_;
             std::vector<std::vector<int64_t>> output_shapes_;
             for (int i = 0; i < output_nodes_; ++i) {
-                Ort::AllocatedStringPtr name = m_session.GetOutputNameAllocated(i, m_allocator->get());
+                Ort::AllocatedStringPtr name = m_session.GetOutputNameAllocated(i, m_allocator);
                 m_output_names_alloc.emplace_back(std::move(name));
                 output_names_.emplace_back(m_output_names_alloc.back().get());
 
@@ -146,9 +138,9 @@ namespace fmr {
             // Metadata
             std::unordered_map<std::string, std::string> model_metadata_;
             const auto &metadata = m_session.GetModelMetadata();
-            const auto &keys = metadata.GetCustomMetadataMapKeysAllocated(m_allocator->get());
+            const auto &keys = metadata.GetCustomMetadataMapKeysAllocated(m_allocator);
             for (const Ort::AllocatedStringPtr &key : keys)
-                model_metadata_[key.get()] = metadata.LookupCustomMetadataMapAllocated(key.get(), m_allocator->get()).get();
+                model_metadata_[key.get()] = metadata.LookupCustomMetadataMapAllocated(key.get(), m_allocator).get();
 
             set_model_metadata(std::move(model_metadata_));
         } catch (const Ort::Exception& e) {
@@ -170,7 +162,7 @@ namespace fmr {
         std::vector<Ort::Value> input_tensors;
         for(size_t i = 0; i < customInputShapes.size(); ++i) {
             Ort::Value tensor = Ort::Value::CreateTensor<float>(
-                *m_memory_info,
+                m_allocator->Info(m_allocator),
                 data.at(i).data(),
                 data.at(i).size(),
                 customInputShapes.at(i).data(),
@@ -228,7 +220,7 @@ namespace fmr {
         const Ort::ModelMetadata &metadata = m_session.GetModelMetadata();
         m_logger->debug("Model metadata:");
         m_logger->debug("  File: {}", m_config.model_path.value_or("").c_str());
-        m_logger->debug("  Graph Name: {}", metadata.GetGraphNameAllocated(m_allocator->get()).get());
+        m_logger->debug("  Graph Name: {}", metadata.GetGraphNameAllocated(m_allocator).get());
 
         m_logger->debug("  Custom Metadata:");
         const auto metadata_metadata = model_metadata();
@@ -255,16 +247,6 @@ namespace fmr {
 
     inline OrtAllocator* onnxruntime::allocator() const
     {
-        return m_allocator->get();
-    }
-
-    inline std::shared_ptr<custom_ort_alloc> onnxruntime::custom_allocator() const
-    {
         return m_allocator;
-    }
-
-    inline std::shared_ptr<Ort::MemoryInfo> onnxruntime::memory_info() const
-    {
-        return m_memory_info;
     }
 }
