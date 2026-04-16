@@ -30,11 +30,11 @@ public:
 
 protected:
     std::unique_ptr<accelerator> &infer_session();
-    virtual std::vector<predictions_t> postprocess_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
-    virtual std::vector<predictions_t> postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
-    virtual std::vector<predictions_t> postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
-    virtual std::vector<predictions_t> postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
-    virtual std::vector<predictions_t> postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size);
+    virtual std::vector<predictions_t> postprocess_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs);
+    virtual std::vector<predictions_t> postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs);
+    virtual std::vector<predictions_t> postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs);
+    virtual std::vector<predictions_t> postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs);
+    virtual std::vector<predictions_t> postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs);
 
 private:
     std::unique_ptr<accelerator> &m_infer_session;
@@ -69,6 +69,8 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
     if (!m_config->stride && metadata.find("stride") !=  metadata.end())
         m_config->stride = std::stoi(metadata.at("stride"));
 
+    auto input_details = m_infer_session->input_details();
+    auto model_batch = static_cast<int>(input_details.at(0).shape.at(0));
     if (!m_config->batch) {
         // User didn't provide batch
         if (metadata.find("batch") !=  metadata.end()){
@@ -76,13 +78,13 @@ inline yolo::yolo(std::unique_ptr<accelerator> &inferSession, std::shared_ptr<yo
             m_config->batch = std::stoi(metadata.at("batch"));
         } else {
             // Fallback to 1 (dynamic) or input shape (fixed)
-            m_config->batch = has_dyn_batch() ? 1 : static_cast<int>(inferSession->input_shapes().at(0).at(0));
+            m_config->batch = has_dyn_batch() ? 1 : model_batch;
         }
     } else {
         // Fixed shape? compare with input shape. if mismatch, enforce
         if (!has_dyn_batch()
-            && static_cast<int>(inferSession->input_shapes().at(0).at(0)) != m_config->batch.value())
-            m_config->batch = static_cast<int>(inferSession->input_shapes().at(0).at(0));
+            && model_batch != m_config->batch.value())
+            m_config->batch = model_batch;
     }
 
     if (!m_config->imgsz && metadata.find("imgsz") != metadata.end()) {
@@ -156,15 +158,9 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
     if (batch.empty())
         return {};
 
-    const auto &input_shapes = m_infer_session->input_shapes();
     // TODO: Support for models with more than 1 input shapes
-    if(input_shapes.size() != 1) {
-        m_logger->warn("Only one input tensor was expected, got {}. Skipping prediction!", input_shapes.size());
-        return std::vector<predictions_t>(batch.size(), {});
-    }
 
     const int batch_size = m_config->batch.value();
-    const std::vector<int64_t> input_shape = input_shapes.at(0); // BCHW
     std::vector<predictions_t> predictions_list;
     predictions_list.reserve(batch.size());
 
@@ -175,9 +171,16 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                                    : std::min(batch.size(), b + batch_size);    // else, the specific size
         const size_t sel_size = sel_end - b;
 
-        auto custom_input_shape = input_shape;
-        int max_h = custom_input_shape.at(2);
-        int max_w = custom_input_shape.at(3);
+        auto inputs = m_infer_session->input_details();
+        if(inputs.size() > 1) {
+            m_logger->warn("This yolo implementation expects and uses only 1 input tensor, got {}.", inputs.size());
+        }
+
+        auto &input = inputs.at(0);
+
+        // BCHW
+        int max_h = input.shape.at(2);
+        int max_w = input.shape.at(3);
 
         if (has_dyn_shape()) {
             int model_stride = m_config->stride.value_or(32);
@@ -193,7 +196,7 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                         max_h = ((max_h / model_stride) + 1) * model_stride;
                 }
 
-                custom_input_shape[2] = max_h;
+                input.shape[2] = max_h;
             }
 
             if (max_w == -1) {
@@ -207,13 +210,13 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
                         max_w = ((max_w / model_stride) + 1) * model_stride;
                 }
 
-                custom_input_shape[3] = max_w;
+                input.shape[3] = max_w;
             }
         }
 
-        custom_input_shape[0] = sel_size;
+        input.shape[0] = sel_size;
 
-        const cv::Size resized_size(custom_input_shape.at(3), custom_input_shape.at(2));
+        const cv::Size resized_size(input.shape.at(3), input.shape.at(2));
         std::vector<cv::Mat> sel_batch;
         for (size_t s = 0; s < sel_size; ++s) {
             const cv::Mat img = batch[b + s];
@@ -231,28 +234,32 @@ inline std::vector<predictions_t> yolo::predict(const std::vector<cv::Mat> &batc
             sel_batch.emplace_back(resized_img);
         }
 
-        std::vector<std::vector<float>> inputs(1,  std::vector<float>(vec_product(custom_input_shape), 0.0f));
-        permute(sel_batch, inputs[0]);
+        std::vector<float> input_data(vec_product(input.shape), 0.0f);
+        permute(sel_batch, input_data);
 
-        m_infer_session->predict_raw(inputs, { custom_input_shape });
+        input.data = reinterpret_cast<void*>(input_data.data());
+        input.size_bytes = input_data.size() * sizeof(float);
+
+        std::vector<tensor> outputs;
+        m_infer_session->predict_raw(inputs, outputs);
 
         std::vector<predictions_t> predictions;
 
         switch (m_config->task.value()) {
         case yolo_config::Detect:
-            predictions = postprocess_detections(batch, b, sel_size, resized_size);
+            predictions = postprocess_detections(batch, b, sel_size, resized_size, outputs);
             break;
         case yolo_config::OBB:
-            predictions = postprocess_obb_detections(batch, b, sel_size, resized_size);
+            predictions = postprocess_obb_detections(batch, b, sel_size, resized_size, outputs);
             break;
         case yolo_config::Pose:
-            predictions = postprocess_keypoints(batch, b, sel_size, resized_size);
+            predictions = postprocess_keypoints(batch, b, sel_size, resized_size, outputs);
             break;
         case yolo_config::Segment:
-            predictions = postprocess_segmentations(batch, b, sel_size, resized_size);
+            predictions = postprocess_segmentations(batch, b, sel_size, resized_size, outputs);
             break;
         case yolo_config::Classify:
-            predictions = postprocess_classifications(batch, b, sel_size, resized_size);
+            predictions = postprocess_classifications(batch, b, sel_size, resized_size, outputs);
             break;
         default:
             break;
@@ -298,10 +305,10 @@ inline void yolo::draw(cv::Mat &img, const predictions_t &predictions, float mas
 
 inline bool yolo::has_dyn_batch()
 {
-    const auto input_shapes = m_infer_session->input_shapes();
-    if (input_shapes.size() == 1                // is exactly one
-        && input_shapes.at(0).size() == 4       // has size 4
-        && input_shapes.at(0).at(0) == -1) {    // has 0 index equal -1
+    const auto inputs = m_infer_session->input_details();
+    if (inputs.size() == 1                // is exactly one
+        && inputs.at(0).shape.size() == 4       // has size 4
+        && inputs.at(0).shape.at(0) == -1) {    // has 0 index equal -1
         return true;
     }
 
@@ -310,11 +317,11 @@ inline bool yolo::has_dyn_batch()
 
 inline bool yolo::has_dyn_shape()
 {
-    const auto input_shapes = m_infer_session->input_shapes();
-    if (input_shapes.size() == 1                    // is exactly one
-        && input_shapes.at(0).size() == 4           // has size 4
-        && (input_shapes.at(0).at(2) == -1          // has 2 index equal -1 (height)
-            || input_shapes.at(0).at(3) == -1)) {   // has 3 index equal -1 (width)
+    const auto inputs = m_infer_session->input_details();
+    if (inputs.size() == 1                    // is exactly one
+        && inputs.at(0).shape.size() == 4           // has size 4
+        && (inputs.at(0).shape.at(2) == -1          // has 2 index equal -1 (height)
+            || inputs.at(0).shape.at(3) == -1)) {   // has 3 index equal -1 (width)
         return true;
     }
 
@@ -352,10 +359,10 @@ inline std::unique_ptr<accelerator> &yolo::infer_session()
     return m_infer_session;
 }
 
-inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs)
 {
-    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
-    const float* output0_data = m_infer_session->tensor_data(0);
+    const std::vector<int64_t> shape0 = outputs.at(0).shape;
+    const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
 
     const int out_batch_size = shape0.at(0);
     const int out_num_features = shape0.at(1);
@@ -447,11 +454,11 @@ inline std::vector<predictions_t> yolo::postprocess_detections(const std::vector
     return predictions_list;
 }
 
-inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs)
 {
     // Expected shape [1, num_features, num_detections]
-    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
-    const float* output0_data = m_infer_session->tensor_data(0);
+    const std::vector<int64_t> shape0 = outputs.at(0).shape;
+    const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
 
     const int out_batch_size = shape0.at(0);
     const int out_num_features = shape0.at(1);
@@ -545,10 +552,10 @@ inline std::vector<predictions_t> yolo::postprocess_obb_detections(const std::ve
     return predictions_list;
 }
 
-inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs)
 {
-    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
-    const float* output0_data = m_infer_session->tensor_data(0);
+    const std::vector<int64_t> shape0 = outputs.at(0).shape;
+    const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
 
     // [N, 4 + num_classes + kpts * 3, num_preds]
     // [N, cxcywh + classes_scores + kpts * xyv, num_preds] (expected).
@@ -655,12 +662,12 @@ inline std::vector<predictions_t> yolo::postprocess_keypoints(const std::vector<
     return results_list;
 }
 
-inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs)
 {
-    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0); // [B, F, D]    -> [1, 116, num_detections] - e.g 80 class + 4 bbox parms + 32 seg masks = 116
-    const std::vector<int64_t> shape1 = m_infer_session->tensor_shape(1); // [B, M, H, W] -> [1, 32, maskH, maskW]
-    const float* output0_data = m_infer_session->tensor_data(0);
-    const float* output1_data = m_infer_session->tensor_data(1);
+    const std::vector<int64_t> shape0 = outputs.at(0).shape; // [B, F, D]    -> [1, 116, num_detections] - e.g 80 class + 4 bbox parms + 32 seg masks = 116
+    const std::vector<int64_t> shape1 = outputs.at(1).shape; // [B, M, H, W] -> [1, 32, maskH, maskW]
+    const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
+    const float* output1_data = reinterpret_cast<float*>(outputs.at(1).data);
 
     const int out_batch_size = shape0.at(0);
     const int out_num_features = shape0.at(1);
@@ -828,10 +835,10 @@ inline std::vector<predictions_t> yolo::postprocess_segmentations(const std::vec
     return predictions_list;
 }
 
-inline std::vector<predictions_t> yolo::postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size)
+inline std::vector<predictions_t> yolo::postprocess_classifications(const std::vector<cv::Mat> &batch, int batch_indx, int sel_batch_size, cv::Size res_size, const std::vector<tensor> &outputs)
 {
-    const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0); // expected [B, 1000]
-    const float* output0_data = m_infer_session->tensor_data(0);
+    const std::vector<int64_t> shape0 = outputs.at(0).shape; // expected [B, 1000]
+    const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
 
     const int out_batch_size = shape0.at(0);
     const int out_num_logits = shape0.at(1);

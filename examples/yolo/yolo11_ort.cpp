@@ -55,10 +55,6 @@ int main(int argc, char* argv[])
         logger->critical("Selected 2nd source file doesn't exist. Please provide a valid source file!");
     }
 
-    // Model path is already validated by the fmr::onnxruntime
-    fmr::predictor_config ort_config;
-    ort_config.model_path = parser.get<std::string>("--model");
-
     std::shared_ptr<fmr::yolo_config> yolo_config = std::make_shared<fmr::yolo_config>();
     if (auto task = parser.present("--task"))
         yolo_config->task = fmr::yolo_config::taskForString(task.value());
@@ -71,7 +67,10 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>(ort_config);
+    // Model path is already validated by the fmr::onnxruntime
+    std::string model_path = parser.get<std::string>("--model");
+    std::unique_ptr<fmr::accelerator> ort = std::make_unique<fmr::onnxruntime>();
+    ort->load_model(model_path);
     ort->print_metadata();
 
     fmr::yolo yolo(ort, yolo_config);

@@ -1,6 +1,11 @@
+#include <any>
 #include <memory>
+#include <string>
+#include <thread>
 #include <vector>
 
+#include <onnxruntime_c_api.h>
+#include <onnxruntime_cxx_api.h>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -10,7 +15,6 @@
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
 
-#include <fmr/config/predictorconfig.hpp>
 #include <fmr/config/paddleocrconfig.hpp>
 #include <fmr/accelerators/accelerator.hpp>
 #include <fmr/accelerators/onnxruntime.hpp>
@@ -71,32 +75,38 @@ int main(int argc, char* argv[]) {
         logger->critical("Selected 2nd source file doesn't exist. Please provide a valid source file!");
     }
 
+    Ort::ThreadingOptions tr_ops;
+    tr_ops.SetGlobalIntraOpNumThreads(std::thread::hardware_concurrency() - 2);
+    tr_ops.SetGlobalInterOpNumThreads(2);
+    std::shared_ptr<Ort::Env> global_env = std::make_shared<Ort::Env>(tr_ops, ORT_LOGGING_LEVEL_WARNING);
+
+    std::shared_ptr<Ort::SessionOptions> session_ops = std::make_shared<Ort::SessionOptions>();
+    session_ops->DisablePerSessionThreads();
+    session_ops->SetGraphOptimizationLevel(ORT_ENABLE_ALL);
+
     // det
-    fmr::predictor_config ort_det_config;
-    ort_det_config.model_path = parser.get<std::string>("--model_det");
-    
-    std::unique_ptr<fmr::accelerator> ort_det = std::make_unique<fmr::onnxruntime>(ort_det_config);
+    std::string det_model_path = parser.get<std::string>("--model_det");
+    std::unique_ptr<fmr::accelerator> ort_det = std::make_unique<fmr::onnxruntime>(global_env);
+    ort_det->load_model(det_model_path, std::make_any<std::shared_ptr<Ort::SessionOptions>>(session_ops));
     ort_det->print_metadata();
     
     fmr::paddleocr_config det_config;
     fmr::paddle::ocr::detector det(ort_det.get(), det_config);
     
     // cls
-    fmr::predictor_config ort_cls_config;
-    ort_cls_config.model_path = parser.get<std::string>("--model_cls");
-    
-    std::unique_ptr<fmr::accelerator> ort_cls = std::make_unique<fmr::onnxruntime>(ort_cls_config);
+    std::string cls_model_path = parser.get<std::string>("--model_cls");
+    std::unique_ptr<fmr::accelerator> ort_cls = std::make_unique<fmr::onnxruntime>(global_env);
+    ort_cls->load_model(cls_model_path, std::make_any<std::shared_ptr<Ort::SessionOptions>>(session_ops));
     ort_cls->print_metadata();
     
     fmr::paddleocr_config cls_config;
     fmr::paddle::ocr::classifier cls(ort_cls.get(), cls_config);
     
     // rec
-    fmr::predictor_config ort_rec_config;
-    ort_rec_config.model_path = parser.get<std::string>("--model_rec");
-    // TODO: Load characters
-    
-    std::unique_ptr<fmr::accelerator> ort_rec = std::make_unique<fmr::onnxruntime>(ort_rec_config);
+    std::string rec_model_path = parser.get<std::string>("--model_rec");
+    // TODO: Load characters, maybe.
+    std::unique_ptr<fmr::accelerator> ort_rec = std::make_unique<fmr::onnxruntime>(global_env);
+    ort_rec->load_model(rec_model_path, std::make_any<std::shared_ptr<Ort::SessionOptions>>(session_ops));
     ort_rec->print_metadata();
     
     fmr::paddleocr_config rec_config;

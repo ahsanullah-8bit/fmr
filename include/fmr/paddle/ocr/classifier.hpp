@@ -47,15 +47,17 @@ inline classifier::classifier(accelerator *inferSession, const paddleocr_config 
         m_config.scale = 1.0f / 255;
 
     // Batch
+    auto inputs = m_infer_session->input_details();
+    auto model_batch = static_cast<int>(inputs.at(0).shape.at(0));
     if (!m_config.batch) {
         // User didn't provide batch
         // Fallback to 1 (dynamic) or input shape (fixed)
-        m_config.batch = has_dyn_batch() ? 1 : static_cast<int>(inferSession->input_shapes().at(0).at(0));
+        m_config.batch = has_dyn_batch() ? 1 : model_batch;
     } else {
         // Fixed shape? compare with input shape. if mismatch, enforce
         if (!has_dyn_batch()
-            && static_cast<int>(inferSession->input_shapes().at(0).at(0)) != m_config.batch.value())
-            m_config.batch = static_cast<int>(inferSession->input_shapes().at(0).at(0));
+            && model_batch != m_config.batch.value())
+            m_config.batch = model_batch;
     }
 
     // Stride
@@ -79,7 +81,6 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
         return {};
 
     const int batch_size = m_config.batch.value();
-    const auto input_shape = m_infer_session->input_shapes().at(0); // BCHW
     clss_t predictions_list(batch.size(), {});
 
     for (size_t b = 0; b < batch.size();) {
@@ -88,9 +89,16 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
                                 : std::min(batch.size(), b + batch_size);    // else, the specific size
         const size_t sel_size = sel_end - b;
 
-        auto custom_input_shape = input_shape;
-        int max_h = custom_input_shape.at(2);
-        int max_w = custom_input_shape.at(3);
+        auto inputs = m_infer_session->input_details();
+        if(inputs.size() > 1) {
+            m_logger->warn("This PaddleOCR classifier implementation expects and uses only 1 input tensor, got {}.", inputs.size());
+        }
+
+        auto &input = inputs.at(0);
+
+        // BCHW
+        int max_h = input.shape.at(2);
+        int max_w = input.shape.at(3);
 
         if (has_dyn_shape()) {
             int model_stride = m_config.stride.value_or(32);
@@ -106,7 +114,7 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
                         max_h = ((max_h / model_stride) + 1) * model_stride;
                 }
 
-                custom_input_shape[2] = max_h;
+                input.shape[2] = max_h;
             }
 
             if (max_w == -1) {
@@ -120,12 +128,12 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
                         max_w = ((max_w / model_stride) + 1) * model_stride;
                 }
 
-                custom_input_shape[3] = max_w;
+                input.shape[3] = max_w;
             }
 
         }
 
-        custom_input_shape[0] = sel_size;
+        input.shape[0] = sel_size;
 
         const cv::Size new_shape(max_w, max_h);
         std::vector<cv::Mat> sel_batch;
@@ -147,15 +155,19 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
             sel_batch.emplace_back(resized_img);
         }
 
-        std::vector<std::vector<float>> inputs(1,  std::vector<float>(vec_product(custom_input_shape), 0.0f));
-        permute(sel_batch, inputs[0]);
+        std::vector<float> input_data(vec_product(input.shape), 0.0f);
+        permute(sel_batch, input_data);
 
-        m_infer_session->predict_raw(inputs, { custom_input_shape });
+        input.data = reinterpret_cast<void*>(input_data.data());
+        input.size_bytes = input_data.size() * sizeof(float);
+
+        std::vector<tensor> outputs;
+        m_infer_session->predict_raw(inputs, outputs);
 
         // expect ['Reshape_233_o0__d0', 2]
-        cv::Size resized_size(custom_input_shape.at(3), custom_input_shape.at(2));
-        const std::vector<int64_t> shape0 = m_infer_session->tensor_shape(0);
-        const float* output0_data = m_infer_session->tensor_data(0);
+        cv::Size resized_size(input.shape.at(3), input.shape.at(2));
+        const std::vector<int64_t> shape0 = outputs.at(0).shape;
+        const float* output0_data = reinterpret_cast<float*>(outputs.at(0).data);
 
         for (size_t s = 0; s < sel_size; ++s) {
             const float *first = &output0_data[s * shape0.at(1)];
@@ -174,26 +186,18 @@ inline clss_t classifier::predict(const std::vector<cv::Mat> &batch) {
 }
 
 inline bool classifier::has_dyn_batch() {
-    const auto input_shapes = m_infer_session->input_shapes();
-    if (input_shapes.size() == 1                        // is exactly one
-        && input_shapes.at(0).size() == 4           // has size 4
-        && input_shapes.at(0).at(0) == -1) {   // has 0 index equal -1
-        return true;
-    }
-
-    return false;
+    const auto inputs = m_infer_session->input_details();
+    return inputs.size() == 1                       // is exactly one
+        && inputs.at(0).shape.size() == 4      // has size 4
+        && inputs.at(0).shape.at(0) == -1; // has 0 index equal -1
 }
 
 inline bool classifier::has_dyn_shape() {
-    const auto input_shapes = m_infer_session->input_shapes();
-    if (input_shapes.size() == 1                            // is exactly one
-        && input_shapes.at(0).size() == 4               // has size 4
-        && (input_shapes.at(0).at(2) == -1         // has 2 index equal -1 (height)
-            || input_shapes.at(0).at(3) == -1)) {  // has 3 index equal -1 (width)
-        return true;
-    }
-
-    return false;
+    const auto inputs = m_infer_session->input_details();
+    return inputs.size() == 1                            // is exactly one
+        && inputs.at(0).shape.size() == 4           // has size 4
+        && (inputs.at(0).shape.at(2) == -1      // has 2 index equal -1 (height)
+            || inputs.at(0).shape.at(3) == -1); // has 3 index equal -1 (width)
 }
 
 } // fmr::paddle::ocr
